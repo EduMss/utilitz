@@ -1,0 +1,93 @@
+{
+  "gf:lora": {
+    "key": "gf:lora",
+    "family": "Lora",
+    "label": "Lora",
+    "source": "https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,700;1,400;1,700",
+    "files": {
+      "bold": "lora-bold.ttf",
+      "normal": "lora-normal.ttf",
+      "boldItalic": "lora-boldItalic.ttf",
+      "italic": "lora-italic.ttf"
+    },
+    "catalog": "serif"
+  },
+  "gf:source-code-pro": {
+    "key": "gf:source-code-pro",
+    "family": "Source Code Pro",
+    "label": "Source Code Pro",
+    "source": "https://fonts.googleapis.com/css2?family=Source+Code+Pro:ital,wght@0,400;0,700;1,400;1,700",
+    "files": {
+      "italic": "source-code-pro-italic.ttf",
+      "bold": "source-code-pro-bold.ttf",
+      "boldItalic": "source-code-pro-boldItalic.ttf",
+      "normal": "source-code-pro-normal.ttf"
+    },
+    "catalog": "mono"
+  },
+  "gf:eb-garamond": {
+    "key": "gf:eb-garamond",
+    "family": "EB Garamond",
+    "label": "EB Garamond",
+    "source": "https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,700;1,400;1,700",
+    "files": {
+      "boldItalic": "eb-garamond-boldItalic.ttf",
+      "bold": "eb-garamond-bold.ttf",
+      "italic": "eb-garamond-italic.ttf",
+      "normal": "eb-garamond-normal.ttf"
+    },
+    "catalog": "serif"
+  },
+  "gf:roboto": {
+    "key": "gf:roboto",
+    "family": "Roboto",
+    "label": "Roboto",
+    "source": "https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,400;0,700;1,400;1,700",
+    "files": {
+      "bold": "roboto-bold.ttf",
+      "normal": "roboto-normal.ttf",
+      "boldItalic": "roboto-boldItalic.ttf",
+      "italic": "roboto-italic.ttf"
+    },
+    "catalog": "sans"
+  },
+  "gf:inter": {
+    "key": "gf:inter",
+    "family": "Inter",
+    "label": "Inter",
+    "source": "https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,700;1,400;1,700",
+    "files": {
+      "bold": "inter-bold.ttf",
+      "normal": "inter-normal.ttf",
+      "italic": "inter-italic.ttf",
+      "boldItalic": "inter-boldItalic.ttf"
+    },
+    "catalog": "sans"
+  },
+  "gf:montserrat": {
+    "key": "gf:montserrat",
+    "family": "Montserrat",
+    "label": "Montserrat",
+    "source": "https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400;0,700;1,400;1,700",
+    "files": {
+      "normal": "montserrat-normal.ttf",
+      "bold": "montserrat-bold.ttf",
+      "italic": "montserrat-italic.ttf",
+      "boldItalic": "montserrat-boldItalic.ttf"
+    },
+    "catalog": "sans"
+  },
+  "gf:crimson-pro": {
+    "key": "gf:crimson-pro",
+    "family": "Crimson Pro",
+    "label": "Crimson Pro",
+    "source": "https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,400;0,700;1,400;1,700",
+    "files": {
+      "bold": "crimson-pro-bold.ttf",
+      "normal": "crimson-pro-normal.ttf",
+      "italic": "crimson-pro-italic.ttf",
+      "boldItalic": "crimson-pro-boldItalic.ttf"
+    },
+    "catalog": "serif"
+  }
+}

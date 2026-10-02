@@ -1,0 +1,56 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>quadro</title></head>
+<body>
+<pre id="out"></pre>
+<iframe id="fr" src="/pdf" style="width:1400px;height:900px;border:0"></iframe>
+<script>
+var fr = document.getElementById('fr');
+var R = {};
+
+function report() { document.getElementById('out').textContent = JSON.stringify(R); }
+
+/** Área visível de um elemento, e o que o navegador devolve no centro dela. */
+function alvo(w, id) {
+  var el = w.document.getElementById(id);
+  if (!el) return { existe: false };
+  var r = el.getBoundingClientRect();
+  var meio = w.document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+  return {
+    existe: true,
+    w: Math.round(r.width),
+    h: Math.round(r.height),
+    noAlvo: !!(meio && (meio === el || el.contains(meio))),
+  };
+}
+
+fr.addEventListener('load', function () {
+  setTimeout(function () { try { R = (function () {
+  var w = fr.contentWindow, d = w.document;
+  var out = {};
+
+  out.split = alvo(w, 'editor-pane');
+  out.preview = alvo(w, 'preview-pane');
+  out.editor = alvo(w, 'source');
+  out.baixar = alvo(w, 'btn-download');
+  out.ajustes = alvo(w, 'btn-settings');
+  out.splitDisplay = w.getComputedStyle(d.querySelector('.split')).display;
+
+  // dá para digitar de verdade?
+  var ta = d.getElementById('source');
+  var antes = ta.value;
+  ta.focus();
+  ta.setSelectionRange(ta.value.length, ta.value.length);
+  ta.value = antes + '\n<!--toque-->';
+  ta.dispatchEvent(new w.Event('input', { bubbles: true }));
+  out.aceitouDigitacao = ta.value.indexOf('<!--toque-->') !== -1;
+  ta.value = antes;
+  ta.dispatchEvent(new w.Event('input', { bubbles: true }));
+
+  // o clique chega no botão de baixar?
+  d.getElementById('btn-download').click();
+  out.baixarCliqueOk = true;
+
+  out.corDoFundo = w.getComputedStyle(d.body).backgroundColor;
+  return out;
+})(); } catch (e) { R = { erro: String(e) }; } report(); }, 3000);
+});
+</script></body></html>

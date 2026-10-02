@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><title>probe</title></head>
+<body>
+<script>
+// Sonda descartável: semeia o rascunho e redireciona para a página real.
+var md = "# Título de Teste\n\nParágrafo com **negrito**, *itálico* e `código`.\n\n## Seção Um\n\n- item a\n- item b\n\n## Seção Dois\n\n1. primeiro\n2. segundo\n\n### Uma citação\n\n> Texto citado.\n\n```js\nconst x = 1;\n```\n\n| a | b |\n| - | - |\n| 1 | 2 |\n\nParágrafo 1 para forçar a quebra de página e conferir a paginação real do preview.\nParágrafo 2 para forçar a quebra de página e conferir a paginação real do preview.\nParágrafo 3 para forçar a quebra de página e conferir a paginação real do preview.\nParágrafo 4 para forçar a quebra de página e conferir a paginação real do preview.\nParágrafo 5 para forçar a quebra de página e conferir a paginação real do preview.\nParágrafo 6 para forçar a quebra de página e conferir a paginação real do preview.\nParágrafo 7 para forçar a quebra de página e conferir a paginação real do preview.\nParágrafo 8 para forçar a quebra de página e conferir a paginação real do preview.\nParágrafo 9 para forçar a quebra de página e conferir a paginação real do preview.\nParágrafo 10 para forçar a quebra de página e conferir a paginação real do preview.\nParágrafo 11 para forçar a quebra de página e conferir a paginação real do preview.\nParágrafo 12 para forçar a quebra de página e conferir a paginação real do preview.\nParágrafo 13 para forçar a quebra de página e conferir a paginação real do preview.\nParágrafo 14 para forçar a quebra de página e conferir a paginação real do preview.\nParágrafo 15 para forçar a quebra de página e conferir a paginação real do preview.\nParágrafo 16 para forçar a quebra de página e conferir a paginação real do preview.\nParágrafo 17 para forçar a quebra de página e conferir a paginação real do preview.\nParágrafo 18 para forçar a quebra de página e conferir a paginação real do preview.\nParágrafo 19 para forçar a quebra de página e conferir a paginação real do preview.\nParágrafo 20 para forçar a quebra de página e conferir a paginação real do preview.\nParágrafo 21 para forçar a quebra de página e conferir a paginação real do preview.\nParágrafo 22 para forçar a quebra de página e conferir a paginação real do preview.\nParágrafo 23 para forçar a quebra de página e conferir a paginação real do preview.\nParágrafo 24 para forçar a quebra de página e conferir a paginação real do preview.\nParágrafo 25 para forçar a quebra de página e conferir a paginação real do preview.\nParágrafo 26 para forçar a quebra de página e conferir a paginação real do preview.\nParágrafo 27 para forçar a quebra de página e conferir a paginação real do preview.\nParágrafo 28 para forçar a quebra de página e conferir a paginação real do preview.\nParágrafo 29 para forçar a quebra de página e conferir a paginação real do preview.\nParágrafo 30 para forçar a quebra de página e conferir a paginação real do preview.";
+var go = new URLSearchParams(location.search).get('go') || '/visualizar';
+var viaHome = new URLSearchParams(location.search).get('home') === '1';
+try {
+  if (viaHome) {
+    // simula exatamente o que a home grava ao clicar no botão
+    localStorage.setItem('md:draft:shared', JSON.stringify(md));
+    localStorage.setItem('md:handoff', JSON.stringify({
+      target: go === '/pdf' ? 'pdf' : 'viewer',
+      markdown: md,
+      title: 'Título de Teste',
+      at: Date.now(),
+    }));
+  } else {
+    localStorage.setItem('md:draft:viewer', JSON.stringify(md));
+    localStorage.setItem('md:draft:pdf', JSON.stringify(md));
+  }
+} catch (e) {}
+location.replace(go);
+</script>
+</body></html>

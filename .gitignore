@@ -1,0 +1,12 @@
+node_modules/
+data/biblioteca.json
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# PDFs gerados durante os testes
+*.pdf
+!public/*.pdf

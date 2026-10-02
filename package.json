@@ -1,0 +1,35 @@
+{
+  "name": "markdown-studio",
+  "version": "1.0.0",
+  "description": "Estúdio de Markdown: visualizador em tela cheia e conversor para PDF com controle tipográfico.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "test": "node scripts/check-integrity.js && node scripts/test-render.js && node scripts/test-matrix.js",
+    "test:render": "node scripts/test-render.js",
+    "test:pdf": "node scripts/test-matrix.js",
+    "test:api": "node scripts/test-api.js",
+    "test:browser": "node scripts/probe-browser.js",
+    "check": "node scripts/check-integrity.js",
+    "smoke": "node scripts/smoke-pdf.js"
+  },
+  "keywords": [
+    "markdown",
+    "pdf",
+    "editor",
+    "express"
+  ],
+  "license": "MIT",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "express": "^5.2.1",
+    "highlight.js": "^11.12.0",
+    "markdown-it": "^15.0.2",
+    "pagedjs": "^0.4.3",
+    "pdfkit": "^0.20.2"
+  }
+}

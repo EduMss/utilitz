@@ -1,0 +1,242 @@
+/* =========================================================
+   Markdown Studio — base
+   ========================================================= */
+
+:root {
+  --bg: #0b1020;
+  --bg-soft: #121a33;
+  --surface: #161f3d;
+  --surface-2: #1c2647;
+  --line: #27325c;
+  --text: #e8ecf8;
+  --muted: #98a3c8;
+  --brand: #6c8cff;
+  --brand-2: #35d0ba;
+  --danger: #ff6b81;
+  --radius: 12px;
+  --radius-sm: 8px;
+  --shadow: 0 18px 45px rgba(3, 7, 20, 0.45);
+  --sans: "Segoe UI", Inter, system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --mono: "JetBrains Mono", "Cascadia Code", Consolas, "Courier New", monospace;
+  --topbar-h: 60px;
+}
+
+* { box-sizing: border-box; }
+
+/* O navegador esconde `[hidden]` com `display: none` na folha padrão, mas essa
+   regra perde para qualquer `display` do autor — e aqui há vários: o spinner
+   do botão de download é `inline-block`, o overlay da prévia é `grid`. O
+   atributo precisa vencer, senão `element.hidden = true` não esconde nada. */
+[hidden] { display: none !important; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+}
+
+body {
+  font-family: var(--sans);
+  color: var(--text);
+  background:
+    radial-gradient(1100px 620px at 12% -8%, #24306b 0%, transparent 62%),
+    radial-gradient(900px 520px at 92% 0%, #1c3f57 0%, transparent 58%),
+    var(--bg);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+a { color: var(--brand); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+button, input, select, textarea { font: inherit; color: inherit; }
+
+svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+::selection { background: rgba(108, 140, 255, 0.35); }
+
+/* ---------------------------------------------------------
+   Barra superior
+   --------------------------------------------------------- */
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  height: var(--topbar-h);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 22px;
+  background: rgba(11, 16, 32, 0.82);
+  backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--line);
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text);
+  font-weight: 650;
+  letter-spacing: 0.2px;
+}
+.brand:hover { text-decoration: none; }
+
+.brand-mark {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  background: linear-gradient(140deg, var(--brand), var(--brand-2));
+  color: #08111f;
+  font-weight: 800;
+  font-size: 14px;
+}
+
+.nav { display: flex; gap: 4px; }
+
+.nav-link {
+  padding: 8px 14px;
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 550;
+  transition: background 0.15s, color 0.15s;
+}
+.nav-link:hover { background: rgba(255, 255, 255, 0.06); color: var(--text); text-decoration: none; }
+.nav-link.is-active { background: rgba(108, 140, 255, 0.18); color: #dbe4ff; }
+
+/* ---------------------------------------------------------
+   Botões e controles
+   --------------------------------------------------------- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 11px 20px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.12s ease, background 0.15s, border-color 0.15s, box-shadow 0.15s;
+  white-space: nowrap;
+}
+.btn:hover { transform: translateY(-1px); }
+.btn:active { transform: translateY(0); }
+.btn:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--brand), #8a6bff);
+  color: #071022;
+  box-shadow: 0 10px 26px rgba(108, 140, 255, 0.3);
+}
+.btn-primary:hover { box-shadow: 0 14px 32px rgba(108, 140, 255, 0.4); }
+
+.btn-ghost { background: transparent; border-color: var(--line); color: var(--text); }
+.btn-ghost:hover { background: rgba(255, 255, 255, 0.06); }
+
+.btn-soft { background: rgba(108, 140, 255, 0.16); color: #cfdaff; }
+.btn-soft:hover { background: rgba(108, 140, 255, 0.26); }
+
+.btn-sm { padding: 7px 13px; font-size: 13px; border-radius: 8px; }
+
+.icon-btn {
+  display: inline-grid;
+  place-items: center;
+  min-width: 32px;
+  height: 30px;
+  padding: 0 7px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.14s, color 0.14s;
+}
+.icon-btn:hover { background: rgba(255, 255, 255, 0.08); color: var(--text); }
+
+.chip {
+  padding: 5px 11px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--muted);
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: background 0.14s, color 0.14s, border-color 0.14s;
+}
+.chip:hover { background: rgba(108, 140, 255, 0.18); color: #dfe6ff; border-color: transparent; }
+
+.select, .text-input {
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #0e1428;
+  color: var(--text);
+  font-size: 13px;
+  width: 100%;
+}
+.select:focus, .text-input:focus { outline: 2px solid rgba(108, 140, 255, 0.5); outline-offset: 1px; }
+
+.grow { flex: 1; }
+.muted { color: var(--muted); font-size: 12.5px; }
+
+/* ---------------------------------------------------------
+   Toast
+   --------------------------------------------------------- */
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 28px;
+  z-index: 120;
+  transform: translate(-50%, 24px);
+  padding: 11px 20px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #101731;
+  box-shadow: var(--shadow);
+  color: var(--text);
+  font-size: 13.5px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s, transform 0.2s;
+}
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+.toast.error { border-color: rgba(255, 107, 129, 0.6); color: #ffd7de; }
+
+/* ---------------------------------------------------------
+   Spinner
+   --------------------------------------------------------- */
+
+.spinner {
+  width: 13px;
+  height: 13px;
+  border: 2px solid rgba(7, 16, 34, 0.35);
+  border-top-color: #071022;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  display: inline-block;
+  vertical-align: -2px;
+}
+.spinner.big { width: 26px; height: 26px; border-width: 3px; border-color: rgba(255, 255, 255, 0.2); border-top-color: var(--brand); }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ---------------------------------------------------------
+   Responsivo
+   --------------------------------------------------------- */
+
+@media (max-width: 860px) {
+  .topbar { padding: 0 14px; }
+  .brand-text { display: none; }
+  .nav-link { padding: 7px 10px; font-size: 13px; }
+}

@@ -1,0 +1,60 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>diag</title></head>
+<body style="margin:0">
+<script>
+function manda(extra) {
+  fetch("http://127.0.0.1:3999/relato", {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain' },
+    body: extra,
+  }).catch(function () {});
+}
+
+function medir(w, rotulo, alvo) {
+  var el = (w.document).querySelector(alvo);
+  if (!el) { manda(rotulo + ' ' + alvo + ': NAO EXISTE'); return null; }
+  manda(rotulo + ' ' + alvo + ': hidden=' + el.hidden +
+    ' display=' + w.getComputedStyle(el).display +
+    ' opacity=' + w.getComputedStyle(el).opacity);
+  return el;
+}
+
+function comPagina(url, fn) {
+  var fr = document.createElement('iframe');
+  fr.style.width = '1400px';
+  fr.style.height = '900px';
+  fr.style.border = '0';
+  fr.src = url;
+  fr.addEventListener('load', function () {
+    setTimeout(function () { fn(fr.contentWindow, fr); }, 3500);
+  });
+  document.body.appendChild(fr);
+}
+
+comPagina('/visualizar', function (w, fr) {
+  manda('--- /visualizar ---');
+  medir(w, 'inicial   ', '#drawer-backdrop');
+  medir(w, 'inicial   ', '#stage-hint');
+
+  var abrir = w.document.getElementById('btn-toggle-editor');
+  manda('botao que abre a gaveta: ' + !!abrir);
+  abrir.click();
+
+  setTimeout(function () {
+    medir(w, 'abriu     ', '#drawer-backdrop');
+    medir(w, 'abriu     ', '#drawer');
+    var fechar = w.document.getElementById('btn-close-drawer');
+    manda('botao que fecha existe: ' + !!fechar);
+    fechar.click();
+    setTimeout(function () {
+      medir(w, 'fechou    ', '#drawer-backdrop');
+      fr.remove();
+      comPagina('/', function (w2, fr2) {
+        manda('--- home ---');
+        medir(w2, 'home      ', '.stage-hint');
+        fr2.remove();
+        manda('=== FIM ===');
+      });
+    }, 900);
+  }, 900);
+});
+</script></body></html>
