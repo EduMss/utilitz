@@ -26,6 +26,33 @@ Durante o desenvolvimento, com recarregamento automático do servidor:
 npm run dev
 ```
 
+### Com Docker
+
+```bash
+docker compose up --build
+```
+
+Depois abra <http://localhost:3000>. Para escolher a porta do host (a do
+container continua 3000):
+
+```bash
+APP_PORT=8080 docker compose up --build
+```
+
+A biblioteca e as fontes baixadas do Google Fonts ficam no volume nomeado
+`markdown-studio-data`, montado em `/app/data`. Num volume recém-criado o
+Docker copia o `data/` que veio na imagem, então as fontes já instaladas
+continuam lá; para começar do zero, `docker compose down -v` apaga o volume.
+
+O container sobe sem privilégio, com o usuário `node`, e traz um healthcheck
+em `/api/settings`. Os logs e o rebuild seguem o padrão do Compose:
+
+```bash
+docker compose logs -f        # logs
+docker compose up -d --build  # sobe em segundo plano
+docker compose down           # derruba (preserva o volume)
+```
+
 ## Páginas
 
 | Rota | O que faz |

@@ -1,0 +1,31 @@
+# Dependências e artefatos de build: reinstallados dentro da imagem
+node_modules
+npm-debug.log*
+*.log
+
+# Estado local: o volume nomeado cobre data/ em tempo de execução
+data/biblioteca.json
+
+# PDFs gerados pelos testes
+*.pdf
+!public/*.pdf
+
+# Arquivos soltos do ambiente de desenvolvimento
+probe-final.txt
+teste-fonte-mono.pdf
+teste-fonte.pdf
+
+# Controle de versão e editores
+.git
+.gitignore
+.gitattributes
+.vscode
+.idea
+.DS_Store
+Thumbs.db
+
+# Documentação e imagens do próprio Docker não são necessários em runtime
+Dockerfile
+.dockerignore
+docker-compose.yml
+README.md

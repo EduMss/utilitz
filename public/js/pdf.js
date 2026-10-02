@@ -465,14 +465,14 @@ ${headingCss}
   font-size: ${(s.fontSize * 0.95).toFixed(2)}pt;
 }
 #preview-pages th, #preview-pages td {
-  border: 0.6pt solid ${s.borderColor};
+  border: 0.35pt solid ${s.textColor};
   padding: 3pt 4pt;
   text-align: left;
 }
 #preview-pages th { background: ${mix(s.accentColor, s.backgroundColor, 0.14)}; font-weight: 700; }
 #preview-pages tr { break-inside: avoid; }
 #preview-pages img { max-width: ${s.imageMaxWidth}%; height: auto; break-inside: avoid; }
-#preview-pages .md-table-wrap { overflow: visible; }
+  #preview-pages .md-table-wrap { overflow: visible; }
 `;
   }
 

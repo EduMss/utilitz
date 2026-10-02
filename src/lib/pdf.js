@@ -21,6 +21,14 @@ const LIST_MARKERS = {
   asterisk: ['*', '+', '·'],
 };
 
+/**
+ * Espessura da grade da tabela, em pt. Espelha o `border` das células no
+ * preview (`TABLE_BORDER` em public/js/pdf.js); os dois precisam andar
+ * juntos, senão a prévia mostra uma malha e o PDF outra.
+ */
+const TABLE_BORDER = 0.35;
+
+
 const ROMAN = [
   [1000, 'm'], [900, 'cm'], [500, 'd'], [400, 'cd'], [100, 'c'], [90, 'xc'],
   [50, 'l'], [40, 'xl'], [10, 'x'], [9, 'ix'], [5, 'v'], [4, 'iv'], [1, 'i'],
@@ -192,6 +200,8 @@ class PdfRenderer {
     this.headingEntries = [];
     this.headingPages = 0;
     this.imageCache = ctx.imageCache || {};
+    /* Margem de bloco ainda não aplicada (ver `margin`/`flush`). */
+    this.pending = 0;
   }
 
   /* ================================================================ *
@@ -209,6 +219,7 @@ class PdfRenderer {
     }
 
     /* Documento final. */
+    this.pending = 0;
     const doc = this.newDoc();
     this.headingEntries = [];
     if (this.settings.showToc) this.renderToc(doc);
@@ -299,7 +310,7 @@ class PdfRenderer {
         align: 'left',
         lineBreak: true,
         characterSpacing: 0,
-        lineGap: lineHeight - doc.currentLineHeight(),
+        lineGap: Math.max(0, lineHeight - doc.currentLineHeight(true)),
         paragraphGap: lastWasSub ? 0 : 3,
       });
 
@@ -318,9 +329,17 @@ class PdfRenderer {
     const listStack = [];
     let index = 0;
     let markerContext = null;
+    let quoteDepth = 0;
 
     while (index < tokens.length) {
       const token = tokens[index];
+
+      /* `doc.text` deixa `doc.x` no fim do trecho desenhado. Listas,
+         tabelas e títulos reposicionam o cursor e nunca devolvem, então
+         o bloco seguinte herdaria o recuo (uma tabela de 4 colunas
+         empurraria o texto para o meio da página). Todo bloco volta
+         para a margem esquerda, respeitando citações aninhadas. */
+      if (token.type !== 'inline') doc.x = this.left(doc) + quoteDepth * 14;
 
       switch (token.type) {
         case 'heading_open':
@@ -336,8 +355,8 @@ class PdfRenderer {
               14,
               this.measure(marker.text, font, settings.fontSize) + 8
             );
-            doc.x = this.left(doc) + markerWidth;
-            markerContext = { marker, hanging: markerWidth };
+            doc.x = this.left(doc) + quoteDepth * 14 + markerWidth;
+            markerContext = { marker, hanging: markerWidth, quoteDepth };
           } else {
             markerContext = null;
           }
@@ -354,7 +373,6 @@ class PdfRenderer {
           const ordered = token.type === 'ordered_list_open';
           const start = ordered ? Number(token.attrGet('start') || 1) : 1;
           listStack.push({ ordered, counter: start - 1 });
-          if (listStack.length === 1) this.space(doc, this.mmToPt(this.settings.paragraphSpacing) * 0.6);
           index += 1;
           continue;
         }
@@ -369,18 +387,21 @@ class PdfRenderer {
         case 'bullet_list_close':
         case 'ordered_list_close':
           listStack.pop();
-          if (listStack.length === 0) this.space(doc, this.mmToPt(this.settings.paragraphSpacing) * 0.6);
+          /* `ul, ol { margin-bottom: <gap> }`: o CSS colapsa com a margem
+             do último `li`, então só a maior vale. */
+          if (listStack.length === 0) this.margin(this.gap());
           index += 1;
           continue;
 
         case 'blockquote_open':
-          doc.x += 14;
+          quoteDepth += 1;
+          this.flush(doc, this.gap() / 2);
           index += 1;
           continue;
 
         case 'blockquote_close':
-          doc.x = this.left(doc);
-          this.space(doc, this.mmToPt(this.settings.paragraphSpacing) * 0.5);
+          quoteDepth = Math.max(0, quoteDepth - 1);
+          this.margin(this.gap() / 2);
           index += 1;
           continue;
 
@@ -406,7 +427,18 @@ class PdfRenderer {
 
         case 'inline':
           if (tokens[index - 1] && tokens[index - 1].type === 'paragraph_open') {
-            this.renderParagraph(doc, token, markerContext || {});
+            /* O preview zera a margem do último parágrafo da citação
+               (`blockquote p:last-child { margin-bottom: 0 }`); sem isso
+               a margem dele se somava à da própria citação. */
+            const fecha = tokens[index + 1];
+            const ultimoDaCitacao =
+              quoteDepth > 0 &&
+              fecha &&
+              fecha.type === 'paragraph_close' &&
+              tokens[index + 2] &&
+              tokens[index + 2].type === 'blockquote_close';
+
+            this.renderParagraph(doc, token, Object.assign({ noGap: ultimoDaCitacao }, markerContext || {}));
             markerContext = null;
           }
           index += 1;
@@ -434,10 +466,12 @@ class PdfRenderer {
     const { settings, colors, fonts } = this;
     const size = settings.fontSize * HEADING_SCALE[level - 1] * settings.headingScale;
     const lineHeight = size * 1.25;
-    const before = this.mmToPt(settings.paragraphSpacing) * (level === 1 ? 1.9 : 1.5);
-    const after = this.mmToPt(settings.paragraphSpacing) * 0.9;
+    /* Mesmo CSS do preview: h1 não ganha margem superior, h2+ ganham
+       gap/3 * 1.8, e todas fecham com gap/3 * 0.7. */
+    const before = level === 1 ? 0 : (this.gap() / 3) * 1.8;
+    const after = (this.gap() / 3) * 0.7;
 
-    if (doc.y > this.geo.margins.top) this.space(doc, before);
+    this.flush(doc, before);
 
     /* Não deixa um título sozinho no fim da página. */
     if (this.bottomLimit(doc) - doc.y < lineHeight * 2.1) doc.addPage();
@@ -466,7 +500,7 @@ class PdfRenderer {
       );
     });
 
-    this.space(doc, after);
+    this.margin(after);
 
     if (level === 1) {
       const ruleColor = mix(colors.accent, colors.background, 0.55);
@@ -474,13 +508,18 @@ class PdfRenderer {
         .rect(this.left(doc), doc.y, this.contentWidth(doc), 0.9)
         .fill(ruleColor)
         .restore();
-      this.space(doc, this.mmToPt(settings.paragraphSpacing) * 0.8);
+      /* h1 tem `padding-bottom: 6pt` no preview, que é o que empurra a régua
+         para baixo do texto. */
+      this.margin(6);
     }
   }
 
   renderParagraph(doc, inline, ctx = {}) {
     const { settings, colors, fonts } = this;
     const marker = ctx.marker || null;
+
+    /* `p { margin-top: 0 }`: só a margem pendente do bloco anterior. */
+    this.flush(doc, 0);
     const images = [];
     const runs = [];
 
@@ -505,7 +544,7 @@ class PdfRenderer {
     /* Parágrafo só com imagem. */
     if (images.length && !runs.length) {
       images.forEach((image) => this.renderImage(doc, image));
-      this.space(doc, this.mmToPt(settings.paragraphSpacing) * 0.8);
+      this.margin(this.blockGap(ctx, marker));
       return;
     }
 
@@ -518,10 +557,18 @@ class PdfRenderer {
     /* Marcador de lista: desenhado fora do fluxo para as linhas seguintes
        ficarem alinhadas no mesmo recuo (hanging indent). */
     if (marker) {
+      /* O `LineWrapper` do PDFKit pula de pagina sozinho quando a proxima
+         linha nao cabe (pdfkit.js:4010). Como o marcador e desenhado
+         antes, ele ficava orfao no fim da pagina anterior e o texto do
+         item aparecia sozinho na seguinte. */
+      const lineHeight = this.fontHeight(fonts.body.normal, settings.fontSize) + this.lineGap();
+      if (doc.y + lineHeight > this.bottomLimit(doc)) doc.addPage();
+
       const hanging = ctx.hanging || 16;
+      const base = this.left(doc) + (ctx.quoteDepth || 0) * 14;
       doc.font(fonts.body.normal).fontSize(settings.fontSize).fillColor(colors.text);
-      doc.text(marker.text, this.left(doc), doc.y, { lineBreak: false, align: 'left' });
-      doc.x = this.left(doc) + hanging;
+      doc.text(marker.text, base, doc.y, { lineBreak: false, align: 'left' });
+      doc.x = base + hanging;
       width -= hanging;
       firstIndent = 0;
     }
@@ -536,7 +583,7 @@ class PdfRenderer {
 
     const groups = this.groupRuns(runs);
     if (!groups.length) {
-      this.space(doc, this.mmToPt(settings.paragraphSpacing));
+      this.margin(this.blockGap(ctx, marker));
       return;
     }
 
@@ -559,7 +606,9 @@ class PdfRenderer {
       this.emitText(doc, text, options, isLast);
     });
 
-    this.space(doc, this.mmToPt(settings.paragraphSpacing));
+    /* Item de lista recebe `li { margin: 0.6mm 0 }`, bem menor que a
+       margem de parágrafo. */
+    this.margin(this.blockGap(ctx, marker));
   }
 
   /**
@@ -604,23 +653,133 @@ class PdfRenderer {
     }
   }
 
+  /**
+   * Quebra as linhas de codigo em linhas visuais que cabem em `util`.
+   *
+   * `lineBreak: false` nao desliga a quebra: ele so pula o calculo
+   * automatico da largura (pdfkit.js:4442). Como `width` era informado,
+   * o `LineWrapper` ainda era criado (pdfkit.js:4192) e cortava a linha
+   * sozinho — a cauda do token descia com a entrelinha da fonte e caia
+   * em cima da linha seguinte. Aqui a quebra e feita antes, e o desenho
+   * acontece sem `width`, caminho que nao cria wrapper (pdfkit.js:4202).
+   */
+  wrapCodeRuns(doc, linhas, util, size, font) {
+    doc.font(font).fontSize(size);
+
+    const cache = new Map();
+    const largura = (t) => {
+      let w = cache.get(t);
+      if (w === undefined) {
+        w = doc.widthOfString(t);
+        cache.set(t, w);
+      }
+      return w;
+    };
+
+    const visuais = [];
+    let atual = [];
+    let x = 0;
+    let quebrou = false;
+
+    linhas.forEach((runs) => {
+      atual = [];
+      x = 0;
+      quebrou = false;
+
+      const fechar = () => {
+        visuais.push(atual);
+        atual = [];
+        x = 0;
+        quebrou = true;
+      };
+
+      runs.forEach((run) => {
+        /* `split` com grupo preserva os espacos, para poderem ser
+           descartados na quebra. */
+        run.text.split(/(\s+)/).forEach((parte) => {
+          if (!parte) return;
+
+          /* Espaco nunca abre linha nem fica pendurado na margem. A
+             indentacao da linha de origem e preservada. */
+          if (!parte.trim()) {
+            if (quebrou && !atual.length) return;
+            if (x + largura(parte) > util) return;
+            atual.push({ text: parte, color: run.color });
+            x += largura(parte);
+            return;
+          }
+
+          const w = largura(parte);
+
+          if (x + w <= util) {
+            atual.push({ text: parte, color: run.color });
+            x += w;
+            quebrou = false;
+            return;
+          }
+
+          /* Token curto vai inteiro para a proxima linha. */
+          if (w <= util) {
+            if (atual.length) fechar();
+            atual.push({ text: parte, color: run.color });
+            x = w;
+            quebrou = false;
+            return;
+          }
+
+          /* Token mais largo que a coluna (URL, GUID): comeca numa linha
+             vazia e e cortado por caractere. */
+          if (atual.length) fechar();
+
+          let resto = parte;
+          while (resto.length) {
+            let n = 0;
+            let soma = 0;
+
+            /* `n` garante progresso: nem um unico caractere e infinitamente
+               largo, entao o laco sempre termina. */
+            while (n < resto.length) {
+              const cw = largura(resto[n]);
+              if (n && x + soma + cw > util) break;
+              soma += cw;
+              n += 1;
+            }
+
+            atual.push({ text: resto.slice(0, n), color: run.color });
+            x += largura(resto.slice(0, n));
+            resto = resto.slice(n);
+            quebrou = false;
+            if (resto) fechar();
+          }
+        });
+      });
+
+      visuais.push(atual);
+    });
+
+    return visuais;
+  }
+
   renderCodeBlock(doc, content, info) {
     const { settings, colors, fonts } = this;
     const language = String(info || '').trim().split(/\s+/)[0];
-    const lines = highlightLines(content, language, settings.syntaxHighlight);
+    const source = highlightLines(content, language, settings.syntaxHighlight);
     const size = Math.max(6.5, settings.fontSize * 0.82);
     const lineHeight = size * 1.4;
     const padX = 8;
-    const padY = 6;
+    const padY = 5;
     const boxWidth = this.contentWidth(doc);
+    const util = boxWidth - padX * 2;
     const left = this.left(doc);
 
-    this.space(doc, this.mmToPt(settings.paragraphSpacing) * 0.8);
+    this.flush(doc, this.gap() / 2);
+
+    const lines = this.wrapCodeRuns(doc, source, util, size, fonts.code.normal);
 
     let cursor = 0;
     let guard = 0;
 
-    while (cursor < lines.length && guard < 400) {
+    while (cursor < lines.length && guard < 5000) {
       guard += 1;
       const available = this.bottomLimit(doc) - doc.y - padY * 2;
       if (available < lineHeight) {
@@ -638,16 +797,14 @@ class PdfRenderer {
       let y = top + padY;
       chunk.forEach((runs) => {
         let x = left + padX;
-        doc.fontSize(size).font(fonts.code.normal);
+        doc.font(fonts.code.normal).fontSize(size);
         runs.forEach((run) => {
+          if (!run.text) return;
           doc.fillColor(run.color);
-          doc.text(run.text, x, y, {
-            lineBreak: false,
-            align: 'left',
-            width: boxWidth - padX * 2,
-            characterSpacing: 0,
-          });
-          x += doc.widthOfString(run.text) + doc.widthOfString(' ');
+          /* Sem `width`: e o caminho que nao cria `LineWrapper`. A
+             posicao ja foi calculada acima. */
+          doc.text(run.text, x, y, { lineBreak: false, align: 'left', characterSpacing: 0 });
+          x += doc.widthOfString(run.text);
         });
         y += lineHeight;
       });
@@ -656,14 +813,16 @@ class PdfRenderer {
       cursor += chunk.length;
     }
 
-    this.space(doc, this.mmToPt(settings.paragraphSpacing) * 0.8);
+    this.margin(this.gap() / 2);
   }
 
   renderRule(doc) {
-    const { settings, colors } = this;
-    this.space(doc, this.mmToPt(settings.paragraphSpacing));
+    const { colors } = this;
+    /* `hr { margin: <gap> * 1.4 0 }` no preview. */
+    const around = this.gap() * 1.4;
+    this.flush(doc, around);
     doc.save().rect(this.left(doc), doc.y, this.contentWidth(doc), 0.8).fill(colors.border).restore();
-    this.space(doc, this.mmToPt(settings.paragraphSpacing));
+    this.margin(around);
   }
 
   renderRawHtml(doc, html) {
@@ -719,8 +878,9 @@ class PdfRenderer {
 
     const width = this.contentWidth(doc);
     const left = this.left(doc);
-    const padX = 6;
-    const padY = 5;
+    /* `th, td { padding: 3pt 4pt }` no preview. */
+    const padX = 4;
+    const padY = 3;
     const columns = Math.max.apply(null, rows.map((r) => r.cells.length));
 
     /* Proporção de largura a partir do conteúdo de cada coluna. */
@@ -737,26 +897,63 @@ class PdfRenderer {
     const totalWeight = weights.reduce((a, b) => a + b, 0) || columns;
     const finalWidths = weights.map((w) => (w / totalWeight) * width);
 
-    this.space(doc, this.mmToPt(settings.paragraphSpacing) * 0.8);
+    /* Bordas verticais: uma por coluna, mais as duas externas. */
+    const verticais = [left];
+    let acumulado = left;
+    finalWidths.forEach((w) => {
+      acumulado += w;
+      verticais.push(acumulado);
+    });
+    verticais[verticais.length - 1] = left + width;
+
+    /* `table { margin: <gap>/2 0 }` no preview. */
+    this.flush(doc, this.gap() / 2);
+
+    /* Y do ultimo horizontal desenhado, para nao trancar em dobro o
+       limite entre duas linhas. */
+    let ultimoHorizontal = null;
 
     rows.forEach((r, rowIndex) => {
       const isHeader = r.cells.some((c) => c.header);
       const size = settings.fontSize * (isHeader ? 0.98 : 0.95);
       const heights = r.cells.map((cell, ci) => {
         const text = this.plainText(cell.runs);
-        const font = this.pickFontForRuns(cell.runs, fonts.body) || fonts.body.normal;
         const cellWidth = finalWidths[ci] || width / columns;
-        const height = doc.font(font).fontSize(size).heightOfString(text, { width: cellWidth - padX * 2 });
-        return Math.max(size * 1.6, height) + padY * 2;
+        const util = cellWidth - padX * 2;
+
+        /* Celula com fonte mista (negrito, codigo) quebra em um numero
+           de linhas diferente conforme a fonte. Medir com a fonte mais
+           larga entre as usadas nunca subestima a altura. */
+        const fontes = this.cellFonts(cell, fonts.body);
+        const height = Math.max.apply(
+          null,
+          fontes.map((font) =>
+            doc
+              .font(font)
+              .fontSize(size)
+              .heightOfString(text, { width: util, lineGap: this.lineGap(size, font) })
+          )
+        );
+
+        return Math.max(size * settings.lineHeight, height) + padY * 2;
       });
       const rowHeight = Math.max.apply(null, heights);
 
-      if (doc.y + rowHeight > this.bottomLimit(doc)) doc.addPage();
+      /* Linha mais alta que a pagina inteira nao cabe em lugar nenhum.
+         Sem o limite, a borda inferior era desenhada em y ~1487 numa
+         pagina de 842 e a grade saia do papel. */
+      const alturaUtil = this.bottomLimit(doc) - this.geo.margins.top;
+      const altura = Math.min(rowHeight, alturaUtil);
+
+      if (doc.y + altura > this.bottomLimit(doc)) {
+        doc.addPage();
+        ultimoHorizontal = null;
+      }
 
       const top = doc.y;
 
-      if (isHeader) doc.save().rect(left, top, width, rowHeight).fill(colors.accentSoft).restore();
-      else if (rowIndex % 2 === 1) doc.save().rect(left, top, width, rowHeight).fill(colors.stripe).restore();
+      if (isHeader) doc.save().rect(left, top, width, altura).fill(colors.accentSoft).restore();
+      else if (rowIndex % 2 === 1) doc.save().rect(left, top, width, altura).fill(colors.stripe).restore();
 
       let x = left;
       r.cells.forEach((cell, ci) => {
@@ -764,18 +961,29 @@ class PdfRenderer {
         if (cell.runs.length) {
           const groups = this.groupRuns(cell.runs);
           const align = cell.align === 'center' ? 'center' : cell.align === 'right' ? 'right' : 'left';
+
+          /* O cursor e posicionado uma vez so. Passar x/y em cada `text`
+             reinicia `doc.y` (pdfkit.js:4439) e zera o `continuedX` apos
+             cada quebra, entao um trecho em negrito no fim da celula era
+             desenhado por cima do texto normal, na mesma linha. Sem
+             coordenadas, os grupos fluem pelo wrapper do PDFKit, como em
+             `renderParagraph`. */
+          doc.x = x + padX;
+          doc.y = top + padY;
+
           groups.forEach((group, gi) => {
-            doc.font(this.pickFont(group, fonts.body)).fontSize(size);
+            const font = this.pickFont(group, fonts.body);
+            doc.font(font).fontSize(size);
             doc.fillColor(isHeader ? colors.heading : colors.text);
             doc.text(
               group.runs.map((run) => run.text).join(''),
-              x + padX,
-              top + padY,
               {
                 width: cellWidth - padX * 2,
                 align,
                 indent: 0,
-                lineGap: 0,
+                /* Mesma entrelinha do preview: sem isso a celula saia a
+                   ~1.11 em e as linhas do texto encostavam. */
+                lineGap: this.lineGap(size, font),
                 characterSpacing: 0,
                 continued: gi < groups.length - 1,
               }
@@ -785,16 +993,31 @@ class PdfRenderer {
         x += cellWidth;
       });
 
-      doc.save().lineWidth(0.6).strokeColor(colors.border).moveTo(left, top).lineTo(left + width, top).stroke();
-      if (isHeader) {
-        doc.moveTo(left, top + rowHeight).lineTo(left + width, top + rowHeight).stroke();
+      /* Grade completa, como o preview: `border-collapse: collapse` com
+         `border` em `th`/`td` (public/js/pdf.js:468) junta tudo numa
+         malha. Sao os 4 lados da linha mais um separador por coluna. A
+         cor do texto contrasta com o fundo; `borderColor` (#d4d4d8) era
+         claro demais e a tabela terminava no branco. */
+      doc.save().lineWidth(TABLE_BORDER).strokeColor(colors.text);
+
+      /* O limite entre duas linhas e a base de uma e o topo da outra.
+         Trancado duas vezes ficava mais escuro que o resto da malha, entao
+         so o topo e desenhado quando ainda nao foi feito. */
+      if (ultimoHorizontal === null || Math.abs(ultimoHorizontal - top) > 0.01) {
+        doc.moveTo(left, top).lineTo(left + width, top).stroke();
       }
+      doc.moveTo(left, top + altura).lineTo(left + width, top + altura).stroke();
+      ultimoHorizontal = top + altura;
+
+      verticais.forEach((bx) => {
+        doc.moveTo(bx, top).lineTo(bx, top + altura).stroke();
+      });
       doc.restore();
 
-      doc.y = top + rowHeight;
+      doc.y = top + altura;
     });
 
-    this.space(doc, this.mmToPt(settings.paragraphSpacing));
+    this.margin(this.gap() / 2);
     return i + 1;
   }
 
@@ -1014,8 +1237,10 @@ class PdfRenderer {
     return family.normal;
   }
 
-  pickFontForRuns(runs, family) {
-    return this.pickFont({ runs: [runs[0] || {}] }, family);
+  /** Fontes usadas por uma celula de tabela, sem repetir. */
+  cellFonts(cell, family) {
+    const fontes = this.groupRuns(cell.runs).map((group) => this.pickFont(group, family));
+    return fontes.length ? fontes : [family.normal];
   }
 
   plainText(runs) {
@@ -1057,7 +1282,10 @@ class PdfRenderer {
 
   fontHeight(font, size) {
     try {
-      return this.measureDoc().font(font).fontSize(size).currentLineHeight();
+      /* `includeGap = true` é obrigatório: o PDFKit avança a linha com
+         `currentLineHeight(true) + lineGap`. Medindo sem o gap da fonte o
+         entrelinhamento saía ~13% maior que o configurado. */
+      return this.measureDoc().font(font).fontSize(size).currentLineHeight(true);
     } catch (err) {
       return size * 1.15;
     }
@@ -1075,17 +1303,61 @@ class PdfRenderer {
     return doc.page.height - doc.page.margins.bottom;
   }
 
-  lineGap() {
-    const size = this.settings.fontSize;
-    return Math.max(0, size * this.settings.lineHeight - this.fontHeight(this.fonts.body.normal, size));
+  /**
+   * Entrelinhamento entre linhas, em pt. O preview herda `line-height` do
+   * container (`public/js/pdf.js:414`) em todos os blocos, então células
+   * de tabela e blocos de código também precisam disso: com `lineGap: 0`
+   * o texto saía a ~1.11 em em vez de 1.5 e as linhas encostavam.
+   */
+  lineGap(size, font) {
+    const s = size || this.settings.fontSize;
+    return Math.max(0, s * this.settings.lineHeight - this.fontHeight(font || this.fonts.body.normal, s));
   }
 
   mmToPt(value) {
     return Number(value || 0) * (72 / 25.4);
   }
 
-  space(doc, amount) {
-    doc.y += Math.max(0, amount || 0);
+  /**
+   * Espaçamento entre blocos, em pontos. `paragraphSpacing` já é em pt
+   * (é assim que o rótulo da tela e o CSS da prévia o usam); passar por
+   * `mmToPt` inflava tudo em 2,8x. As frações reproduzem exatamente as
+   * regras `#preview-pages` geradas em public/js/pdf.js.
+   */
+  gap() {
+    return Math.max(0, Number(this.settings.paragraphSpacing) || 0);
+  }
+
+  /** Margem de lista: `li { margin: 0.6mm 0 }` no preview. */
+  listItemGap() {
+    return this.mmToPt(0.6);
+  }
+
+  /**
+   * Margem que um bloco deixa para o seguinte. Não move o cursor: o CSS
+   * colapsa margens vizinhas (fica a maior), então quem desenha decide
+   * com `flush`.
+   */
+  margin(amount) {
+    this.pending = Math.max(this.pending || 0, Math.max(0, amount || 0));
+  }
+
+  /**
+   * Aplica a margem pendente antes de desenhar, colapsada com a margem
+   * superior do bloco (`top`). A margem superior é ignorada no topo da
+   * página, onde não há conteúdo acima para separar.
+   */
+  flush(doc, top) {
+    const pending = this.pending || 0;
+    this.pending = 0;
+    const topMargin = doc.y > this.geo.margins.top + 0.01 ? top || 0 : 0;
+    doc.y += Math.max(topMargin, pending);
+  }
+
+  /** Margem que um bloco deixa para o seguinte. */
+  blockGap(ctx, marker) {
+    if (ctx.noGap) return 0;
+    return marker ? this.listItemGap() : this.gap();
   }
 }
 

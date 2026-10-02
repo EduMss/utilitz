@@ -60,12 +60,14 @@ function decodeEntities(text) {
 function htmlToRuns(html) {
   const runs = [];
   const stack = [];
-  const tagRe = /<span class="([^"]*)">|<\/span>|[^<]+/g;
+  const tagRe = /(<span class="([^"]*)">)|<\/span>|([^<]+)/g;
   const currentColor = () => (stack.length ? stack[stack.length - 1] : PLAIN);
   let match;
 
   while ((match = tagRe.exec(html)) !== null) {
-    const [full, cls, , text] = match;
+    /* Tres grupos: tag completa, classe e texto. Os dois ultimos so
+       existem na alternativa que casou. */
+    const [full, , cls, text] = match;
 
     if (full === '</span>') {
       stack.pop();
@@ -73,7 +75,8 @@ function htmlToRuns(html) {
     }
 
     if (cls !== undefined) {
-      stack.push(TOKEN_COLORS[cls] || currentColor());
+      /* As classes vem como `hljs-attr`; a paleta usa o nome sem prefixo. */
+      stack.push(TOKEN_COLORS[cls.replace(/^hljs-/, '')] || currentColor());
       continue;
     }
 

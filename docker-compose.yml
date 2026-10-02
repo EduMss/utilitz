@@ -1,0 +1,39 @@
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: markdown-studio:latest
+    container_name: markdown-studio
+    restart: unless-stopped
+    # Tini como PID 1: o Node ouve SIGTERM e fecha o servidor, mas sem um init
+    # os processos zumbis das requisições ficam pendurados no container.
+    init: true
+    ports:
+      # A porta do host é livre (APP_PORT); a do container é fixa em 3000 para
+      # o healthcheck não depender de configuração.
+      - "${APP_PORT:-3000}:3000"
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      HOST: 0.0.0.0
+    volumes:
+      # Biblioteca de documentos e fontes baixadas do Google Fonts. Num volume
+      # nomeado recém-criado o Docker copia o conteúdo de data/ que veio na
+      # imagem, então as fontes já instaladas continuam disponíveis.
+      - markdown-studio-data:/app/data
+    healthcheck:
+      test:
+        - CMD
+        - wget
+        - -q
+        - -O
+        - /dev/null
+        - http://127.0.0.1:3000/api/settings
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  markdown-studio-data:
