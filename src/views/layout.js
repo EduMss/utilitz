@@ -101,6 +101,7 @@ ${chrome ? `<header class="topbar">
 ${body}
 <script src="${versioned('/js/shared-settings.js')}"></script>
 <script src="${versioned('/js/common.js')}"></script>
+<script src="${versioned('/js/images.js')}"></script>
 ${scripts.map((src) => `<script src="${versioned(src)}"></script>`).join('\n')}
 </body>
 </html>`;

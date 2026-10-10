@@ -7,6 +7,9 @@ Thumbs.db
 .vscode/
 .idea/
 
+# Configuração local (use .env.example como modelo)
+.env
+
 # PDFs gerados durante os testes
 *.pdf
 !public/*.pdf

@@ -76,6 +76,7 @@ function viewer() {
   <header class="v-drawer-head">
     <span>Markdown</span>
     <div class="v-drawer-actions">
+      <button type="button" class="chip" id="btn-image" title="Inserir imagem (colar, arrastar ou escolher arquivo)">🖼 Imagem</button>
       <button type="button" class="chip" id="btn-format" title="Formatar">Formatar</button>
       <button type="button" class="chip" data-example="0">Exemplo</button>
       <button type="button" class="icon-btn" id="btn-clear" title="Limpar">✕</button>
@@ -106,6 +107,14 @@ function viewer() {
 
 <div class="toast" id="toast" role="status"></div>
 <input type="file" id="file-input" accept=".md,.markdown,.txt,text/markdown,text/plain" hidden>
+<input type="file" id="img-input" accept="image/png,image/jpeg,image/gif,image/webp,image/avif,image/bmp" hidden>
+
+<div class="dropzone dropzone-screen" id="screen-drop" aria-hidden="true">
+  <div>
+    <strong>Solte a imagem aqui para inserir no markdown</strong>
+    <small>No editor, ela entra exatamente no ponto do mouse.</small>
+  </div>
+</div>
 `,
   });
 }

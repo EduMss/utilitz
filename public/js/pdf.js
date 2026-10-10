@@ -19,7 +19,17 @@
   const settingsPanel = $('#settings');
   const loading = $('#preview-loading');
 
-  let settings = Object.assign({}, Shared.DEFAULTS, storage.get(SETTINGS_KEY, {}));
+  /* Ajustes salvos: migra o padrão antigo "justificado" (que esticava as
+     palavras) para "esquerda" uma única vez, usando `settingsVersion`. */
+  const storedSettings = storage.get(SETTINGS_KEY, {});
+  const savedSettings =
+    storedSettings && typeof storedSettings === 'object' ? Object.assign({}, storedSettings) : {};
+  if (!savedSettings.settingsVersion && savedSettings.textAlign === 'justify') {
+    savedSettings.textAlign = 'left';
+  }
+  savedSettings.settingsVersion = Shared.DEFAULTS.settingsVersion;
+  let settings = Object.assign({}, Shared.DEFAULTS, savedSettings);
+  storage.set(SETTINGS_KEY, settings);
   let previewer = null;
   let previewRun = null;
   let zoom = Number(storage.get('md:zoom:pdf', 0)) || 0;
@@ -423,6 +433,9 @@ ${furniture}
   font-family: ${heading};
   font-weight: 700;
   letter-spacing: 0;
+  /* Título não herda o justify do corpo: com uma palavra por linha ele
+     esticaria tudo (palavra na esquerda, outra na direita). */
+  text-align: left;
   break-after: avoid;
 }
 ${headingCss}
@@ -761,6 +774,42 @@ ${headingCss}
   });
 
   /* ==========================================================
+     Inserir imagem (colar Ctrl+V, arrastar-e-soltar ou upload)
+     ========================================================== */
+
+  const imageTools = window.MD.image;
+  const imageInput = $('#img-input');
+
+  /** Lê o arquivo em base64 e insere o markdown da imagem no editor. */
+  async function insertImage(file, offset) {
+    if (!file) return;
+    try {
+      const dataUrl = await imageTools.dataUrlFor(file);
+      imageTools.insert(editor, imageTools.markdownFor(file, dataUrl), offset);
+      toast('Imagem "' + (file.name || '') + '" inserida.');
+    } catch (err) {
+      toast(err.message || 'Não foi possível inserir a imagem.', 'error');
+    }
+  }
+
+  $('#btn-image').addEventListener('click', () => imageInput.click());
+
+  imageInput.addEventListener('change', () => {
+    const file = imageInput.files && imageInput.files[0];
+    imageInput.value = '';
+    if (file) insertImage(file, null);
+  });
+
+  /* Ctrl+V com imagem na área de transferência entra no cursor. */
+  imageTools.onPaste(editor, (files) => insertImage(files[0], null));
+
+  /* Arrastar para a página mostra a área de soltar; no editor, a imagem
+     entra exatamente no ponto do mouse. */
+  imageTools.onScreenImageDrop($('#screen-drop'), (files, x, y) => {
+    insertImage(files[0], imageTools.insertOffset(editor, x, y));
+  });
+
+  /* ==========================================================
      Ações
      ========================================================== */
 
@@ -868,8 +917,19 @@ ${headingCss}
 
   $('#btn-download').addEventListener('click', download);
 
-  $('#btn-print').addEventListener('click', () => {
+  $('#btn-print').addEventListener('click', async () => {
     settingsPanel.classList.remove('is-open');
+    /* Se a paginação ainda estiver rodando, o navegador imprimiria uma
+       página em branco ("Salvar como PDF" do próprio navegador). Espera a
+       prévia terminar — ou pelo menos avisa quando nada foi paginado. */
+    if (previewRun) {
+      try { await previewRun; } catch (err) { /* segue e avisa abaixo */ }
+    }
+    const pages = previewPages.querySelectorAll('.pagedjs_page').length;
+    if (!pages) {
+      toast('A paginação ainda não terminou; tente imprimir de novo.', 'error');
+      return;
+    }
     toast('Use "Salvar como PDF" na janela de impressão.', 'info');
     setTimeout(() => window.print(), 350);
   });

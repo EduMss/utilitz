@@ -338,6 +338,45 @@
   });
 
   /* ==========================================================
+     Inserir imagem (colar Ctrl+V, arrastar-e-soltar ou upload)
+     ========================================================== */
+
+  const imageTools = window.MD.image;
+  const imageInput = $('#img-input');
+
+  /** Lê o arquivo em base64 e insere o markdown da imagem no editor. */
+  async function insertImage(file, offset) {
+    if (!file) return;
+    try {
+      const dataUrl = await imageTools.dataUrlFor(file);
+      imageTools.insert(source, imageTools.markdownFor(file, dataUrl), offset);
+      toast('Imagem "' + (file.name || '') + '" inserida.');
+    } catch (err) {
+      toast(err.message || 'Não foi possível inserir a imagem.', 'error');
+    }
+  }
+
+  $('#btn-image').addEventListener('click', () => imageInput.click());
+
+  imageInput.addEventListener('change', () => {
+    const file = imageInput.files && imageInput.files[0];
+    imageInput.value = '';
+    if (file) insertImage(file, null);
+  });
+
+  /* Ctrl+V com imagem na área de transferência entra no cursor. */
+  imageTools.onPaste(source, (files) => insertImage(files[0], null));
+
+  /* Arrastar para a página mostra a área de soltar. Se a gaveta do editor
+     estava aberta e o soltar caiu sobre ela, a imagem entra no ponto do
+     mouse; senão, abre a gaveta e insere no cursor. */
+  imageTools.onScreenImageDrop($('#screen-drop'), (files, x, y) => {
+    const wasClosed = !drawer.classList.contains('is-open');
+    if (wasClosed) toggleDrawer(true);
+    insertImage(files[0], wasClosed ? null : imageTools.insertOffset(source, x, y));
+  });
+
+  /* ==========================================================
      Inicialização
      ========================================================== */
 

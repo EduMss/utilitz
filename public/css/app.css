@@ -770,3 +770,41 @@
     margin: 0;
   }
 }
+
+/* ---------------------------------------------------------
+   Inserir imagem: área de arrastar-e-soltar (dropzone)
+   Mostrada enquanto um arquivo de imagem arrasta sobre a
+   janela. Fica sobre tudo, mas com pointer-events:none para
+   não atrapalhar o navegador entre sujar e soltar.
+   --------------------------------------------------------- */
+
+.dropzone {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  text-align: center;
+  border: 2px dashed var(--brand);
+  border-radius: var(--radius);
+  background: rgba(10, 16, 36, 0.94);
+  color: var(--text);
+  font-size: 13.5px;
+  pointer-events: none;
+}
+.dropzone.is-visible { display: flex; }
+.dropzone strong {
+  display: block;
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+.dropzone small { color: var(--muted); }
+
+.dropzone-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  border: 0;
+  border-radius: 0;
+  background: rgba(10, 16, 36, 0.88);
+}

@@ -18,6 +18,41 @@
   source.addEventListener('input', save);
 
   /* ------------------------------------------------------------
+     Inserir imagem (colar Ctrl+V, arrastar-e-soltar ou upload)
+     ------------------------------------------------------------ */
+  const imageTools = window.MD.image;
+  const imageInput = $('#img-input');
+
+  /** Lê o arquivo em base64 e insere o markdown da imagem no editor. */
+  async function insertImage(file, offset) {
+    if (!file) return;
+    try {
+      const dataUrl = await imageTools.dataUrlFor(file);
+      imageTools.insert(source, imageTools.markdownFor(file, dataUrl), offset);
+      toast('Imagem "' + (file.name || '') + '" inserida.');
+    } catch (err) {
+      toast(err.message || 'Não foi possível inserir a imagem.', 'error');
+    }
+  }
+
+  $('#btn-image').addEventListener('click', () => imageInput.click());
+
+  imageInput.addEventListener('change', () => {
+    const file = imageInput.files && imageInput.files[0];
+    imageInput.value = '';
+    if (file) insertImage(file, null);
+  });
+
+  /* Ctrl+V com imagem na área de transferência entra no cursor. */
+  imageTools.onPaste(source, (files) => insertImage(files[0], null));
+
+  /* Arrastar para a página mostra a área de soltar; no editor, a imagem
+     entra exatamente no ponto do mouse. */
+  imageTools.onScreenImageDrop($('#screen-drop'), (files, x, y) => {
+    insertImage(files[0], imageTools.insertOffset(source, x, y));
+  });
+
+  /* ------------------------------------------------------------
      Exemplos
      ------------------------------------------------------------ */
   const EXAMPLES = [

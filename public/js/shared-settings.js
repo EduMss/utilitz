@@ -42,7 +42,9 @@
     fontSize: 11,
     lineHeight: 1.6,
     letterSpacing: 0,
-    textAlign: 'justify',
+    /* Padrão "esquerda": o justificado esticava as palavras e parecia
+       espaçamento. Quem quiser pode escolher "Justificado" no painel. */
+    textAlign: 'left',
     firstLineIndent: 0,
     paragraphSpacing: 9,
     headingScale: 1.25,
@@ -76,6 +78,10 @@
     showToc: false,
     tocDepth: 2,
     hyphenation: false,
+
+    /* Versão do schema de ajustes salvos. Serve para migrar o padrão antigo
+       (justificado) para o novo (esquerda) uma única vez. */
+    settingsVersion: 2,
   };
 
   var POSITIONS = {

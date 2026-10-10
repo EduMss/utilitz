@@ -143,6 +143,7 @@ function home() {
       <div class="samples">
         <span class="samples-label">Exemplos:</span>
         ${sampleButtons}
+        <button type="button" class="chip" id="btn-image" title="Inserir imagem (colar, arrastar ou escolher arquivo)">🖼 Imagem</button>
       </div>
       <div class="start-buttons">
         <button type="button" class="btn btn-soft" data-go="viewer">Abrir no visualizador</button>
@@ -168,7 +169,16 @@ function home() {
   <footer class="foot">
     <span>Markdown Studio · Express + markdown-it + PDFKit + Paged.js</span>
   </footer>
-</main>`,
+</main>
+
+<input type="file" id="img-input" accept="image/png,image/jpeg,image/gif,image/webp,image/avif,image/bmp" hidden>
+
+<div class="dropzone dropzone-screen" id="screen-drop" aria-hidden="true">
+  <div>
+    <strong>Solte a imagem aqui para inserir no markdown</strong>
+    <small>No editor, ela entra exatamente no ponto do mouse.</small>
+  </div>
+</div>`,
     scripts: ['/js/home.js'],
   });
 }

@@ -70,6 +70,24 @@ O texto escrito na página inicial segue para a ferramenta escolhida. A passagem
 é feita por uma chave de uso único (`md:handoff`), separada do rascunho de cada
 página, para o título não se misturar ao texto salvo.
 
+## Inserir imagens
+
+Os três editores — página inicial, visualizador e conversor — aceitam imagens de
+três formas, todas convertendo o arquivo para base64 e embutindo no markdown:
+
+- **Colar** com `Ctrl+V` enquanto a imagem está na área de transferência;
+- **Arrastar** um arquivo de imagem para dentro da página (surge a área de soltar);
+  soltar sobre o editor coloca a imagem exatamente no ponto do mouse;
+- **Escolher o arquivo** pelo botão 🖼 (na barra do editor ou na gaveta).
+
+A imagem entra no texto como `![alt](data:image/...;base64,...)`. Como está no
+markdown, ela é renderizada na pré-visualização e entra no PDF exportado da mesma
+forma que qualquer outra imagem — sem depender de hospedagem externa.
+
+Formatos: PNG, JPG, GIF, WebP, AVIF e BMP, até 15 MB por arquivo. SVG fica de fora
+de propósito, pois um SVG embutido poderia carregar scripts. A leitura e a
+inserção ficam em um módulo compartilhado, `public/js/images.js`.
+
 ## API
 
 | Método | Rota | Descrição |
@@ -96,18 +114,62 @@ Tudo é ajustável pelo painel lateral e salvo no navegador.
 
 Há presets prontos (artigo, relatório, manual, slides e afins) que definem tudo de uma vez.
 
+## Gerar o PDF com o Chrome
+
+Por padrão o PDF sai do gerador em PDFKit (`src/lib/pdf.js`). Dá para trocar por
+uma renderização no Chrome/Chromium headless, que imprime o mesmo HTML paginado
+pela pré-visualização (Paged.js): útil quando você quer o PDF idêntico à tela,
+com as fontes e o realce de código do navegador.
+
+A escolha é feita no `.env` (veja `.env.example`):
+
+```dotenv
+# false = PDFKit (padrão) | true = Chrome/Chromium headless
+USER_CHROME=true
+
+# Pasta (ou executável) do Chrome/Chromium/Edge. Vazio = detecta sozinho.
+DIR_CHROME=
+```
+
+- `USER_CHROME` ausente ou `false` mantém o gerador atual. Qualquer valor
+  diferente de `false`/`0`/`off` liga o modo Chrome (`USER_CHROME` e o apelido
+  `USE_CHROME` são aceitos).
+- `DIR_CHROME` aceita o caminho do executável ou a pasta que o contém. Em
+  branco, o servidor procura nos caminhos comuns (Chrome, Chromium e Edge, em
+  Windows, macOS e Linux) e no `PATH`.
+- A impressão usa o DevTools Protocol do Chrome (Node 22+ precisa do `WebSocket`
+  global). Em Node mais antigo, cai para o modo `--print-to-pdf` — funciona,
+  mas depende de orçamento de tempo virtual e pode, em condições extremas,
+  cortar a paginação no meio; em qualquer caso, o conteúdo nunca sai em branco.
+- Se o Chrome estiver ligado mas não for encontrado — ou falhar ao gerar —
+  o servidor volta sozinho para o PDFKit, sem quebrar o download. A resposta
+  diz qual motor foi usado no cabeçalho `X-Pdf-Engine` (`chrome` ou `pdfkit`).
+
+Variáveis já definidas no ambiente ganham do `.env`, então dá para ligar o modo
+na hora sem editar o arquivo:
+
+```bash
+USER_CHROME=true npm start
+```
+
+No Docker, o modo Chrome precisa de um navegador na imagem (o `Dockerfile`
+não traz Chromium por padrão). Se instalar um, aponte `DIR_CHROME` para o
+caminho dele pelas variáveis do `docker-compose.yml`.
+
 ## Como funciona
 
 O HTML é gerado **no servidor** por `src/lib/markdown.js` (markdown-it + highlight.js) e higienizado antes de voltar ao navegador. O visualizador e a pré-visualização do PDF consomem exatamente o mesmo HTML, então os dois modos nunca divergem.
 
-O PDF é montado no servidor por `src/lib/pdf.js`, que percorre os tokens do Markdown e desenha cada bloco com PDFKit usando fontes padrão (Helvetica, Times e Courier). A pré-visualização usa o Paged.js para paginar o mesmo CSS no navegador — é por isso que ela reflete quebra de página, cabeçalho, rodapé e sumário reais. Usamos o bundle `public/vendor/paged.js` (e não o `paged.polyfill`): o polyfill se auto-executa e consome as folhas de estilo do documento, o que quebraria o layout da página.
+O PDF é montado no servidor por `src/lib/pdf.js`, que percorre os tokens do Markdown e desenha cada bloco com PDFKit usando fontes padrão (Helvetica, Times e Courier). Com `USER_CHROME` ligado, `src/lib/chrome.js` monta o mesmo HTML da prévia, deixa o Paged.js paginar e imprime com o Chrome headless pelo DevTools Protocol (`Page.printToPDF`), esperando a paginação confirmar antes de imprimir — sem navegador disponível, o PDFKit assume. A pré-visualização usa o Paged.js para paginar o mesmo CSS no navegador — é por isso que ela reflete quebra de página, cabeçalho, rodapé e sumário reais. Usamos o bundle `public/vendor/paged.js` (e não o `paged.polyfill`): o polyfill se auto-executa e consome as folhas de estilo do documento, o que quebraria o layout da página.
 
 As configurações vivem em um único arquivo, `public/js/shared-settings.js`, carregado tanto pelo Node quanto pelo navegador. Isso evita que servidor e cliente se desalinham.
 
 ```
 server.js              bootstrap do Express
+src/lib/env.js         leitura do .env
 src/lib/markdown.js    Markdown -> HTML (+ higienização)
 src/lib/pdf.js         Markdown -> PDF (PDFKit)
+src/lib/chrome.js      Markdown -> PDF no Chrome headless (opcional)
 src/lib/settings.js    normalização de configurações, geometria, cores
 src/lib/syntax.js      realce de código (highlight.js -> linhas coloridas)
 src/lib/library.js     biblioteca em JSON
@@ -176,6 +238,15 @@ node scripts/smoke-pdf.js saida.pdf
 A gaveta do editor cobre a barra flutuante, então ela traz o próprio botão
 **Fechar** e um fundo escuro: clicar fora também fecha.
 
+**Conversor para PDF**
+
+| Atalho | Ação |
+| --- | --- |
+| `Ctrl+B` / `Ctrl+I` | Negrito / itálico (dentro do editor) |
+| `Ctrl+S` | Baixar o PDF |
+| `G` | Abrir as configurações |
+| `Esc` | Fechar as configurações |
+
 ## Cache dos arquivos estáticos
 
 `js` e `css` são servidos com `Cache-Control: no-cache` e as URLs das páginas
@@ -207,19 +278,6 @@ As colunas do conversor precisam de `min-height: 0` e de uma
 padrão, então sem isso a coluna cresce até a altura do conteúdo e o rodapé com
 o *Baixar PDF* sai da tela — presente no DOM e visível no `curl`, impossível de
 clicar. A sonda mede a área real dos painéis e do botão para pegar isso.
-
-## Testes
-
-```bash
-
-**Conversor para PDF**
-
-| Atalho | Ação |
-| --- | --- |
-| `Ctrl+B` / `Ctrl+I` | Negrito / itálico (dentro do editor) |
-| `Ctrl+S` | Baixar o PDF |
-| `G` | Abrir as configurações |
-| `Esc` | Fechar as configurações |
 
 ## Licença
 

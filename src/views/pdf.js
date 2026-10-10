@@ -29,6 +29,7 @@ function pdf() {
         <button type="button" class="icon-btn" data-wrap="fence" title="Bloco de código">▤</button>
         <button type="button" class="icon-btn" data-wrap="table" title="Tabela">▦</button>
         <button type="button" class="icon-btn" data-wrap="quote" title="Citação">❝</button>
+        <button type="button" class="icon-btn" id="btn-image" title="Inserir imagem (colar, arrastar ou escolher arquivo)">🖼</button>
       </div>
       <div class="bar-actions">
         <button type="button" class="icon-btn" id="btn-open" title="Abrir .md">📂</button>
@@ -229,6 +230,14 @@ function pdf() {
 
 <div class="toast" id="toast" role="status"></div>
 <input type="file" id="file-input" accept=".md,.markdown,.txt,text/markdown,text/plain" hidden>
+<input type="file" id="img-input" accept="image/png,image/jpeg,image/gif,image/webp,image/avif,image/bmp" hidden>
+
+<div class="dropzone dropzone-screen" id="screen-drop" aria-hidden="true">
+  <div>
+    <strong>Solte a imagem aqui para inserir no markdown</strong>
+    <small>No editor, ela entra exatamente no ponto do mouse.</small>
+  </div>
+</div>
 `,
   });
 }

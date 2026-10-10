@@ -4,6 +4,7 @@ const express = require('express');
 
 const { render, stats } = require('../lib/markdown');
 const { renderPdf } = require('../lib/pdf');
+const chrome = require('../lib/chrome');
 const { shared, normalize, slugFilename } = require('../lib/settings');
 const { store } = require('../lib/library');
 const fonts = require('../lib/fonts');
@@ -40,13 +41,36 @@ router.post('/pdf', async (req, res, next) => {
     const settings = normalize(body.settings || {});
     const filename = slugFilename(body.title || settings.runningTitle, 'documento');
 
-    const buffer = await renderPdf(markdown, body.settings || {}, {
+    const options = {
       fallbackName: body.title || 'documento',
       metadata: body.metadata,
-    });
+    };
+
+    /* `USER_CHROME` liga o renderizador do Chrome. Sem Chrome instalado, ou
+       se ele falhar, o PDF sai pelo gerador atual (PDFKit) em vez de virar
+       erro na tela. */
+    let buffer;
+    let engine = 'pdfkit';
+    if (chrome.chromeEnabled()) {
+      if (chrome.resolveChrome()) {
+        try {
+          buffer = await chrome.renderPdf(markdown, body.settings || {}, options);
+          engine = 'chrome';
+        } catch (err) {
+          console.warn('[pdf] falha no Chrome, voltando para o PDFKit:', err.message);
+        }
+      } else {
+        console.warn('[pdf] USER_CHROME ativo, mas nenhum Chrome/Chromium foi encontrado; usando o PDFKit.');
+      }
+    }
+
+    if (!buffer) {
+      buffer = await renderPdf(markdown, body.settings || {}, options);
+    }
 
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Length', buffer.length);
+    res.setHeader('X-Pdf-Engine', engine);
     res.setHeader(
       'Content-Disposition',
       (body.inline ? 'inline' : 'attachment') + '; filename="' + filename + '.pdf"'

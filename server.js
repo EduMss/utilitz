@@ -1,6 +1,11 @@
 'use strict';
 
 const path = require('node:path');
+
+/* Antes de qualquer leitura de `process.env`: o `.env` alimenta PORT/HOST e a
+   escolha do gerador de PDF (USER_CHROME/DIR_CHROME). */
+require('./src/lib/env').loadEnv();
+
 const express = require('express');
 
 const pagesRouter = require('./src/routes/pages');
