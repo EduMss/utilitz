@@ -102,11 +102,24 @@ md.renderer.rules.image = function (tokens, idx, options, env, self) {
 };
 
 /** Tabelas ganham wrapper para permitir rolagem horizontal no celular. */
-md.renderer.rules.table_open = function () {
-  return '<div class="md-table-wrap"><table>';
+md.renderer.rules.table_open = function (tokens, idx) {
+  const src = tokens[idx].attrGet('data-src');
+  return '<div class="md-table-wrap"' + (src ? ' data-src="' + src + '"' : '') + '><table>';
 };
 md.renderer.rules.table_close = function () {
   return '</table></div>';
+};
+
+/**
+ * O destaque de código já devolve um `<pre>` pronto, então o markdown-it não
+ * aplica os atributos do token. Reinjeta o `data-src` (mapa de origem) para a
+ * sincronização de rolagem também ancorar blocos de código.
+ */
+const defaultFence = md.renderer.rules.fence;
+md.renderer.rules.fence = function (tokens, idx, options, env, self) {
+  const out = defaultFence(tokens, idx, options, env, self);
+  const src = tokens[idx].attrGet('data-src');
+  return src ? out.replace('<pre', '<pre data-src="' + src + '"') : out;
 };
 
 /** Remove o wrapper padrão do p-level em itens de lista (CSS cuida do recuo). */
@@ -192,13 +205,30 @@ function sanitizeHtml(html) {
  * ------------------------------------------------------------------ */
 
 /**
+ * Marca cada bloco de nível superior com a linha de origem (`data-src`).
+ * É usado apenas pela prévia de PDF, para casar o que está no editor com o
+ * bloco renderizado correspondente (sincronização de rolagem).
+ */
+function markSourceLines(tokens) {
+  for (const token of tokens) {
+    if (token.level !== 0 || token.nesting === -1 || token.type === 'inline') continue;
+    if (!token.map) continue;
+    token.attrSet('data-src', String(token.map[0]));
+  }
+}
+
+/**
  * Renderiza markdown em HTML.
  * @param {string} source
- * @param {{ headings?: boolean }} opts quando headings:true devolve {html, headings}
+ * @param {{ headings?: boolean, sourceMap?: boolean }} opts
+ *   headings:true devolve {html, headings}; sourceMap:true adiciona data-src
+ *   nos blocos de nível superior.
  */
 function render(source, opts = {}) {
   const env = {};
-  const html = sanitizeHtml(md.render(String(source || ''), env));
+  const tokens = md.parse(String(source || ''), env);
+  if (opts.sourceMap) markSourceLines(tokens);
+  const html = sanitizeHtml(md.renderer.render(tokens, md.options, env));
   if (opts.headings) return { html, headings: env.headings || [] };
   return html;
 }

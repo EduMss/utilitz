@@ -477,6 +477,20 @@ async function buildHtml(source, rawSettings, options = {}) {
     });
     return Promise.race([Promise.all(loads), guard]);
   }
+  /* Imagem fora da área de visão decodifica tarde (loading=lazy já foi trocado
+     por eager na montagem). Se o Paged.js paginar antes dela decodificar, a
+     folha sai curta e o PDF perde páginas. Decodificar o conteúdo de
+     emergência popula o cache e a paginação passa a medir altura real. */
+  function imagesReady() {
+    var imgs = document.querySelectorAll('#fallback-content img');
+    var jobs = Array.prototype.map.call(imgs, function (img) {
+      var done = img.complete && img.naturalWidth > 0
+        ? Promise.resolve()
+        : img.decode().catch(function () {});
+      return Promise.race([done, new Promise(function (resolve) { setTimeout(resolve, 8000); })]);
+    });
+    return Promise.all(jobs);
+  }
   window.addEventListener('load', function () {
     if (!window.Paged || typeof window.Paged.Previewer !== 'function') {
       document.documentElement.setAttribute('data-pagedjs-error', 'Paged.js nao carregado');
@@ -485,6 +499,7 @@ async function buildHtml(source, rawSettings, options = {}) {
     var previewer = new window.Paged.Previewer();
     loadExternalFonts()
       .then(fontsReady)
+      .then(imagesReady)
       .then(function () {
         return previewer.preview(CONTENT, [{ 'chrome-print.css': CSS }], target);
       })

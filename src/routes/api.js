@@ -21,7 +21,8 @@ function withFaces(descriptor) {
  * ------------------------------------------------------------------ */
 router.post('/render', (req, res) => {
   const markdown = String((req.body && req.body.markdown) || '');
-  const result = render(markdown, { headings: true });
+  const sourceMap = !!(req.body && req.body.sourceMap);
+  const result = render(markdown, { headings: true, sourceMap });
   res.json({ html: result.html, headings: result.headings, stats: stats(markdown) });
 });
 

@@ -51,8 +51,11 @@
     return response;
   }
 
-  const render = (markdown) =>
-    api('/api/render', { method: 'POST', body: JSON.stringify({ markdown }) }).then((r) => r.json());
+  const render = (markdown, options) =>
+    api('/api/render', {
+      method: 'POST',
+      body: JSON.stringify(Object.assign({ markdown }, options || {})),
+    }).then((r) => r.json());
 
   /* ---------------------------------------------------------
      Armazenamento local (rascunho das páginas)

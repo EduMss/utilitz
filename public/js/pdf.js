@@ -87,6 +87,32 @@
     await Promise.all(jobs);
   }
 
+  /**
+   * Espera as imagens do documento decodificarem antes de o Paged.js medir.
+   *
+   * A decodificação acontece numa cópia fora da árvore: o Paged.js não precisa
+   * delas no lugar para a largura/altura estarem certas, e o navegador guarda
+   * a imagem decodificada em cache para os clones que ele montar. Cada espera
+   * tem teto de 8s para não travar a prévia por causa de uma URL remota lenta.
+   */
+  async function preloadImages(html) {
+    const holder = document.createElement('div');
+    holder.innerHTML = html;
+    const images = Array.from(holder.querySelectorAll('img'));
+    await Promise.all(
+      images.map((img) => {
+        img.loading = 'eager';
+        img.decoding = 'async';
+        const decodificada =
+          (img.complete && img.naturalWidth > 0) ? Promise.resolve() : img.decode();
+        return Promise.race([
+          decodificada.then(() => {}, () => {}),
+          new Promise((resolve) => setTimeout(resolve, 8000)),
+        ]);
+      })
+    );
+  }
+
   async function loadFontStore() {
     try {
       const data = await (await api('/api/fonts')).json();
@@ -612,6 +638,7 @@ ${headingCss}
 
   async function updatePreview() {
     const token = ++renderToken;
+    updating++;
     const markdown = editor.value;
     storage.set(DRAFT_KEY, markdown);
 
@@ -619,7 +646,19 @@ ${headingCss}
     loading.hidden = false;
 
     try {
-      const result = await render(markdown);
+      /* `sourceMap: true` faz cada bloco renderizado carregar `data-src` com a
+         linha de origem — é o que permite sincronizar a rolagem com o editor. */
+      const result = await render(markdown, { sourceMap: true });
+      if (token !== renderToken) return;
+
+      /* O renderizador emite `loading="lazy"` (bom na home, onde a página rola).
+         No PDF, imagem fora do corte só decodificaria depois da paginação, e o
+         Paged.js mediria ela com altura 0: a prévia sairia com poucas páginas e
+         o resto do texto cortado. Forçar `eager` e esperar a decodificação
+         garante que as folhas saiam com as medidas reais, no lugar de depender
+         da rolagem. */
+      const documentHtml = String(result.html || '').replace(/loading="lazy"/g, 'loading="eager"');
+      await preloadImages(documentHtml);
       if (token !== renderToken) return;
 
       if (!window.Paged || typeof window.Paged.Previewer !== 'function') {
@@ -640,6 +679,21 @@ ${headingCss}
       }
 
       previewPages.innerHTML = '';
+
+      /* O Paged.js mede o conteúdo com `getBoundingClientRect`, que enxerga o
+         `transform: scale()` do zoom. O CSS de `.preview-pages` anima esse
+         transform (transition de 150 ms); limpar só o `transform` faria o valor
+         computado continuar animando e o Paged.js mediria a página "encolhida"
+         no meio da transição, empilhando o conteúdo todo na primeira folha.
+         Desligar a transição durante a paginação faz o transform sumir na hora;
+         ela é restaurada logo abaixo, depois de paginar. */
+      previewPages.style.transition = 'none';
+      previewPages.style.transform = '';
+      previewPages.style.marginBottom = '';
+      previewPages.style.marginLeft = '';
+      previewPages.style.marginRight = '';
+      void previewPages.offsetWidth;
+
       previewer = new window.Paged.Previewer();
 
       /* A fonte externa precisa estar carregada antes da medição: o Paged.js
@@ -652,18 +706,28 @@ ${headingCss}
 
       // preview() faz a paginação de forma assíncrona e só resolve quando as
       // folhas já estão no DOM.
-      previewRun = previewer.preview(result.html, folhas, previewPages);
+      previewRun = previewer.preview(documentHtml, folhas, previewPages);
       if (previewRun && typeof previewRun.then === 'function') await previewRun;
 
       if (token !== renderToken) return;
 
       const pages = previewPages.querySelectorAll('.pagedjs_page').length;
       $('#pages-info').textContent = pages + (pages === 1 ? ' página' : ' páginas');
+
+      // Remove o `transition: none` inline para o zoom voltar a animar.
+      previewPages.style.transition = '';
       applyZoom();
+
+      /* Depois de repaginar o DOM é recriado do zero; reposiciona a prévia na
+         mesma faixa do editor, em vez de voltar ao topo. */
+      syncPreviewToEditor();
     } catch (err) {
       if (token === renderToken) toast('Erro na pré-visualização: ' + err.message, 'error');
     } finally {
+      // Garante que a transição do zoom volte mesmo se a prévia foi substituída.
+      previewPages.style.transition = '';
       if (token === renderToken) loading.hidden = true;
+      updating = Math.max(0, updating - 1);
     }
   }
 
@@ -682,7 +746,20 @@ ${headingCss}
     if (!zoom) value = Math.min(1, available / natural);
 
     previewPages.style.transform = 'scale(' + value + ')';
-    previewPages.style.marginBottom = value < 1 ? (previewPages.offsetHeight * (value - 1)) + 'px' : '';
+    /* `transform` não altera o espaço ocupado: a caixa continua com a largura
+       cheia da folha (A4) e o painel ganha barra de rolagem horizontal mesmo
+       com a página reduzida. Margens negativas devolvem ao layout a sobra que
+       o `scale` deixou de fora, mantendo a folha centralizada. */
+    if (value < 1) {
+      const bleed = (natural * (1 - value)) / 2;
+      previewPages.style.marginLeft = -bleed + 'px';
+      previewPages.style.marginRight = -bleed + 'px';
+      previewPages.style.marginBottom = (previewPages.offsetHeight * (value - 1)) + 'px';
+    } else {
+      previewPages.style.marginLeft = '';
+      previewPages.style.marginRight = '';
+      previewPages.style.marginBottom = '';
+    }
     $('#zoom-label').textContent = Math.round(value * 100) + '%';
     storage.set('md:zoom:pdf', zoom);
     return value;
@@ -707,11 +784,234 @@ ${headingCss}
   window.addEventListener('resize', debounce(() => applyZoom(), 200));
 
   /* ==========================================================
+     Sincronização de rolagem (editor <-> prévia)
+     ----------------------------------------------------------
+     O editor é um <textarea> (texto puro) e a prévia é o documento paginado.
+     Para casar os dois usamos:
+       · o editor renderizado num "espelho" invisível, que dá a altura de cada
+         linha do texto (o textarea quebra linhas como o espelho, então a
+         posição de cada linha é confiável);
+       · o `data-src` (linha de origem) que cada bloco da prévia carrega.
+     Assim a rolagem de um painel leva o outro para o bloco correspondente.
+     ========================================================== */
+
+  let mirror = null; // espelho invisível do editor
+  let mirrorDirty = true; // conteúdo/tamanho mudou desde a última medição
+  let lineTops = []; // topo (px) de cada linha do editor, no espaço de rolagem
+  let suppressUntil = 0; // evita laço: ignora o scroll que nós mesmos causamos
+  let updating = 0; // >0 enquanto a prévia está sendo repaginada
+
+  /** Ignora os eventos de rolagem por um instante (os que nós causamos). */
+  function suppressSync(ms) {
+    suppressUntil = performance.now() + (ms || 150);
+  }
+
+  /**
+   * Além do laço programático, há dois momentos em que a rolagem não deve ser
+   * sincronizada: logo depois de digitar (o navegador às vezes reflui e "reseta"
+   * a rolagem da prévia ao vazio) e durante a repaginação. Nesses casos o evento
+   * de scroll é espúrio e não representa a intenção do usuário.
+   */
+  function syncPaused() {
+    return updating > 0 || performance.now() < suppressUntil;
+  }
+
+  /** (Re)constrói o espelho e mede a posição vertical de cada linha. */
+  function buildMirror() {
+    if (!mirror) {
+      mirror = document.createElement('div');
+      mirror.className = 'editor-mirror';
+      mirror.setAttribute('aria-hidden', 'true');
+      document.body.appendChild(mirror);
+    }
+
+    const cs = window.getComputedStyle(editor);
+    const st = mirror.style;
+    st.cssText = '';
+    /* `fixed` tira o espelho do fluxo: ele não aumenta a rolagem da página nem
+       força um layout que `reset`aria a rolagem do editor ao ser medido. */
+    st.position = 'fixed';
+    st.top = '0';
+    st.left = '0';
+    st.visibility = 'hidden';
+    st.pointerEvents = 'none';
+    st.zIndex = '-1';
+    st.overflow = 'hidden';
+    st.margin = '0';
+    st.border = '0';
+    st.boxSizing = 'border-box';
+    // Mesma largura de conteúdo do textarea (clientWidth já exclui a barra).
+    st.width = editor.clientWidth + 'px';
+    st.fontFamily = cs.fontFamily;
+    st.fontSize = cs.fontSize;
+    st.fontWeight = cs.fontWeight;
+    st.fontStyle = cs.fontStyle;
+    st.lineHeight = cs.lineHeight;
+    st.letterSpacing = cs.letterSpacing;
+    st.wordSpacing = cs.wordSpacing;
+    st.tabSize = cs.tabSize;
+    st.whiteSpace = 'pre-wrap';
+    st.overflowWrap = cs.overflowWrap === 'normal' ? 'break-word' : cs.overflowWrap;
+    st.wordBreak = cs.wordBreak;
+    st.padding = cs.padding;
+
+    // Uma <div> por linha: linhas vazias mantêm a altura por causa do ZWSP.
+    const lines = editor.value.split('\n');
+    const frag = document.createDocumentFragment();
+    for (let i = 0; i < lines.length; i++) {
+      const row = document.createElement('div');
+      row.textContent = lines[i] || '\u200b';
+      frag.appendChild(row);
+    }
+    mirror.textContent = '';
+    mirror.appendChild(frag);
+
+    const padTop = parseFloat(cs.paddingTop) || 0;
+    const base = mirror.getBoundingClientRect().top + padTop;
+    const rows = mirror.children;
+    lineTops = new Array(rows.length);
+    for (let i = 0; i < rows.length; i++) {
+      lineTops[i] = rows[i].getBoundingClientRect().top - base;
+    }
+    mirrorDirty = false;
+  }
+
+  function ensureMirror() {
+    if (mirrorDirty || !lineTops.length) buildMirror();
+  }
+
+  /** Linha do editor que está no topo da área visível. */
+  function editorTopLine() {
+    ensureMirror();
+    const y = editor.scrollTop;
+    let lo = 0;
+    let hi = lineTops.length - 1;
+    let ans = 0;
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1;
+      if (lineTops[mid] <= y) {
+        ans = mid;
+        lo = mid + 1;
+      } else {
+        hi = mid - 1;
+      }
+    }
+    return ans;
+  }
+
+  /** Coloca a linha pedida no topo do editor. */
+  function scrollEditorToLine(line) {
+    if (!editor.clientHeight) return;
+    ensureMirror();
+    const i = Math.max(0, Math.min(line, lineTops.length - 1));
+    suppressSync();
+    editor.scrollTop = lineTops[i];
+  }
+
+  /* ----- âncoras da prévia ----- */
+
+  /** Fator do `transform: scale()` aplicado em `#preview-pages`. */
+  function previewScale() {
+    const natural = previewPages.offsetWidth;
+    return natural ? previewPages.getBoundingClientRect().width / natural : 1;
+  }
+
+  /** Distância (em px de layout, sem escala) do bloco até o topo visível. */
+  function previewDistance(el) {
+    const scale = previewScale() || 1;
+    return (el.getBoundingClientRect().top - previewPane.getBoundingClientRect().top) / scale;
+  }
+
+  function previewBlocks() {
+    return previewPages.querySelectorAll('[data-src]');
+  }
+
+  /** Linha de origem do bloco que ocupa o topo da prévia. */
+  function previewTopLine() {
+    const blocks = previewBlocks();
+    if (!blocks.length) return null;
+    let best = blocks[0];
+    let bestTop = -Infinity;
+    for (const block of blocks) {
+      const top = previewDistance(block);
+      if (top <= 4 && top >= bestTop) {
+        bestTop = top;
+        best = block;
+      }
+    }
+    return Number(best.getAttribute('data-src'));
+  }
+
+  /** Rola a prévia até o bloco que cobre a linha indicada. */
+  function scrollPreviewToLine(line) {
+    const blocks = previewBlocks();
+    if (!blocks.length) return;
+
+    // Maior linha de origem que não passa de `line` = bloco que contém a linha.
+    let alvo = -Infinity;
+    for (const block of blocks) {
+      const src = Number(block.getAttribute('data-src'));
+      if (src <= line && src > alvo) alvo = src;
+    }
+
+    // O Paged.js pode partir um bloco entre páginas (mesmo `data-src`); usamos o
+    // primeiro pedaço, que é o topo real do bloco.
+    let target = null;
+    for (const block of blocks) {
+      if (Number(block.getAttribute('data-src')) === alvo) {
+        target = block;
+        break;
+      }
+    }
+    if (!target) target = blocks[0];
+
+    suppressSync();
+    previewPane.scrollTop += previewDistance(target);
+  }
+
+  /** Reposiciona a prévia na mesma faixa que o editor (usada após paginar). */
+  function syncPreviewToEditor() {
+    if (!previewBlocks().length) return;
+    scrollPreviewToLine(editorTopLine());
+  }
+
+  /* Sincronização durante a rolagem, em um quadro por vez. */
+  let syncFrame = 0;
+
+  function scheduleSync(from) {
+    if (syncFrame) return;
+    syncFrame = requestAnimationFrame(() => {
+      syncFrame = 0;
+      if (syncPaused()) return;
+      if (from === 'editor') {
+        if (previewBlocks().length) scrollPreviewToLine(editorTopLine());
+      } else {
+        const line = previewTopLine();
+        if (line !== null) scrollEditorToLine(line);
+      }
+    });
+  }
+
+  editor.addEventListener('scroll', () => scheduleSync('editor'));
+  previewPane.addEventListener('scroll', () => scheduleSync('preview'));
+
+  /* A quebra de linha do texto depende da largura do painel. */
+  window.addEventListener(
+    'resize',
+    debounce(() => {
+      mirrorDirty = true;
+    }, 200)
+  );
+
+  /* ==========================================================
      Editor
      ========================================================== */
 
   editor.addEventListener('input', () => {
     storage.set(DRAFT_KEY, editor.value);
+    mirrorDirty = true;
+    // Segura a sincronização até a prévia ser repaginada (evita o "vai ao topo").
+    suppressSync(600);
     updatePreviewDebounced();
     updateCounter();
   });
