@@ -492,7 +492,11 @@
   box-shadow: 0 4px 14px rgba(108, 140, 255, 0.35);
 }
 
-.bar-title { display: flex; align-items: baseline; gap: 10px; font-size: 14px; }
+/* o título cede espaço para os botões: dentro do painel estreito a barra não
+   pode estourar, senão os últimos botões saem cortados pelo overflow:hidden */
+.bar-title { display: flex; align-items: baseline; gap: 10px; font-size: 14px; min-width: 0; }
+.bar-title > strong { flex: none; }
+.bar-title > .muted { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bar-tools, .bar-actions { display: flex; align-items: center; gap: 3px; }
 .bar-title + .bar-tools { margin-left: auto; }
 .bar-actions { margin-left: auto; }

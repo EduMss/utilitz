@@ -106,7 +106,10 @@ function dumpDom(browser, url, budget) {
         '--dump-dom',
         url,
       ],
-      { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'] }
+      { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'],
+        /* trava de verdade em vez de esperar para sempre: um Chrome preso no
+           dump derruba a suíte inteira junto */
+        timeout: Number(budget || 60000) + 90000 }
     );
   } finally {
     fs.rmSync(profile, { recursive: true, force: true });
@@ -171,7 +174,14 @@ function alvo(w, id) {
 }
 
 fr.addEventListener('load', function () {
-  setTimeout(function () { try { R = ${body}; } catch (e) { R = { erro: String(e) }; } report(); }, 3000);
+  setTimeout(function () {
+    try {
+      // o corpo pode ser síncrono (objeto) ou assíncrono (promise): as duas
+      // rotas escrevem o relatório no mesmo <pre>
+      Promise.resolve(${body}).then(function (value) { R = value; report(); },
+        function (err) { R = { erro: String(err) }; report(); });
+    } catch (e) { R = { erro: String(e) }; report(); }
+  }, 3000);
 });
 </script></body></html>`;
 }
@@ -182,9 +192,10 @@ fr.addEventListener('load', function () {
  * então regra de impressão vazava para a tela e desmontava a tela dividida.
  */
 function pdfFrameBody() {
-  return `(function () {
+  return `(async function () {
   var w = fr.contentWindow, d = w.document;
   var out = {};
+  var sleep = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
 
   out.split = alvo(w, 'editor-pane');
   out.preview = alvo(w, 'preview-pane');
@@ -192,6 +203,18 @@ function pdfFrameBody() {
   out.baixar = alvo(w, 'btn-download');
   out.ajustes = alvo(w, 'btn-settings');
   out.splitDisplay = w.getComputedStyle(d.querySelector('.split')).display;
+
+  /* No Chrome headless o download nunca encerra o ciclo e o tempo virtual
+     do --dump-dom fica preso para sempre. Interceptar a âncora devolve o
+     controle ao teste — e registra que o arquivo foi pedido, que é o que
+     interessa: o clique percorreu o caminho inteiro até o download. */
+  d.addEventListener('click', function (ev) {
+    var a = ev.target;
+    if (a && a.tagName === 'A' && a.hasAttribute('download')) {
+      ev.preventDefault();
+      out.baixou = a.getAttribute('download');
+    }
+  }, true);
 
   // dá para digitar de verdade?
   var ta = d.getElementById('source');
@@ -207,6 +230,8 @@ function pdfFrameBody() {
   // o clique chega no botão de baixar?
   d.getElementById('btn-download').click();
   out.baixarCliqueOk = true;
+  /* o fetch do PDF e a âncora rodam nesse intervalo (tempo virtual) */
+  await sleep(6000);
 
   out.corDoFundo = w.getComputedStyle(d.body).backgroundColor;
   return out;
@@ -231,6 +256,7 @@ function frameReport(dom) {
 function clickHtml() {
   return frameHtml('/visualizar', viewerFrameBody());
 }
+
 
 /** Lógica executada dentro do iframe do visualizador. */
 function viewerFrameBody() {
@@ -423,6 +449,11 @@ try {
     check('o editor é clicável', ui.editor.noAlvo === true, JSON.stringify(ui.editor));
     check('o editor aceita digitação', ui.aceitouDigitacao === true);
     check('o botão Baixar PDF é clicável', ui.baixar.noAlvo === true, JSON.stringify(ui.baixar));
+    check(
+      'o clique percorreu o caminho até o download',
+      typeof ui.baixou === 'string' && /\.pdf$/.test(ui.baixou),
+      'baixou=' + JSON.stringify(ui.baixou)
+    );
     check('o botão de ajustes é clicável', ui.ajustes.noAlvo === true, JSON.stringify(ui.ajustes));
   }
   console.log('');
@@ -498,6 +529,7 @@ try {
     check('clicar no fundo também fecha', report.fundoFecha === true && report.leftDepoisFundo < 0, JSON.stringify({ fecha: report.fundoFecha, left: report.leftDepoisFundo }));
   }
   console.log('');
+
 } finally {
   fs.rmSync(PROBE, { force: true });
   fs.rmSync(CLICK, { force: true });
