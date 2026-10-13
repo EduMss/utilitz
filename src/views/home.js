@@ -16,6 +16,10 @@ const FEATURES = [
     text: 'Tela dividida: você escreve à esquerda e acompanha as páginas paginadas à direita, em tempo real.',
   },
   {
+    title: 'Conversor de imagens',
+    text: 'Troque o formato de PNG, JPEG, WebP, GIF, BMP, TIFF, ICO e SVG sem sair do navegador — nada é enviado ao servidor.',
+  },
+  {
     title: 'Tipografia a seu gosto',
     text: 'Fonte, corpo, entrelinha, margens, tamanho do papel, tema, cabeçalho, rodapé, sumário e muito mais.',
   },
@@ -129,6 +133,7 @@ function home() {
     <div class="hero-actions">
       <a class="btn btn-primary" href="/visualizar">Visualizar em tela cheia</a>
       <a class="btn btn-ghost" href="/pdf">Converter para PDF</a>
+      <a class="btn btn-ghost" href="/imagens">Converter imagens</a>
     </div>
   </section>
 
