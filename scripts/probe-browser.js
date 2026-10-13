@@ -257,6 +257,87 @@ function clickHtml() {
   return frameHtml('/visualizar', viewerFrameBody());
 }
 
+/**
+ * Lógica executada dentro do iframe do /formatar: cola um JSON de uma linha
+ * só e confere se a prévia vira leitura de verdade (linhas, números e cor),
+ * depois exercita o aviso de `\n` literal e o botão que o converte.
+ */
+function formatFrameBody() {
+  return `(async function () {
+  var w = fr.contentWindow, d = w.document;
+  var out = {};
+  var sleep = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
+
+  var ta = d.getElementById('fmt-input');
+  if (!ta) return { semEditor: true };
+
+  /* um JSON colado de uma linha só precisa virar leitura de verdade */
+  ta.value = '{"nome":"Ana","tags":["a","b"],"ativo":true}';
+  ta.dispatchEvent(new w.Event('input', { bubbles: true }));
+  await sleep(800);
+
+  out.badge = d.getElementById('fmt-badge').textContent;
+  out.linhas = d.querySelectorAll('#fmt-preview .fmt-line').length;
+  var num = d.querySelector('#fmt-preview .fmt-num');
+  out.primeiraNum = num ? num.textContent : null;
+  out.realce = /hljs-/.test(d.getElementById('fmt-preview').innerHTML);
+  out.copiar = !d.getElementById('fmt-copy').disabled;
+  out.baixar = !d.getElementById('fmt-download').disabled;
+
+  /* texto com \\n literal: o aviso e o botão de converter precisam aparecer */
+  var nl = String.fromCharCode(92) + 'n';
+  var br = String.fromCharCode(10);
+  var asp = String.fromCharCode(34);
+  ta.value = 'um' + nl + 'dois';
+  ta.dispatchEvent(new w.Event('input', { bubbles: true }));
+  await sleep(800);
+
+  out.grupoTexto = !d.getElementById('grp-text').hidden;
+  out.dicaAlerta = d.getElementById('text-hint').className.indexOf('is-alert') !== -1;
+  var fix = d.getElementById('hint-fix');
+  out.temBotaoConverter = !!fix;
+  if (fix) {
+    fix.click();
+    await sleep(400);
+    out.linhasDepois = d.querySelectorAll('#fmt-preview .fmt-line').length;
+    out.checkboxLigado = d.getElementById('opt-unescape').checked;
+  }
+
+  /* JSON escapado: remover 1 nível de escape precisa virar JSON de verdade */
+  var barras = String.fromCharCode(92);
+  ta.value = '{' + barras + asp + 'nome' + barras + asp + ':' +
+             barras + asp + 'Ana' + barras + asp + '}';
+  ta.dispatchEvent(new w.Event('input', { bubbles: true }));
+  await sleep(800);
+
+  out.grupoJson = !d.getElementById('grp-json').hidden;
+  var box = d.getElementById('opt-remove-escapes');
+  out.temOpcaoEscape = !!box;
+  box.checked = true;
+  box.dispatchEvent(new w.Event('change', { bubbles: true }));
+  await sleep(400);
+  out.escapeVirouJson = d.querySelectorAll('#fmt-preview .fmt-line').length > 1 &&
+    d.getElementById('fmt-preview').textContent.indexOf(barras + asp) === -1;
+
+  /* texto multilinha: em uma linha só, escapado como string */
+  ta.value = 'primeira linha' + br + 'outra linha';
+  ta.dispatchEvent(new w.Event('input', { bubbles: true }));
+  await sleep(800);
+  var one = d.getElementById('opt-one-line');
+  out.temOpcaoUmaLinha = !!one;
+  if (one) {
+    one.checked = true;
+    one.dispatchEvent(new w.Event('change', { bubbles: true }));
+    await sleep(400);
+    var saida = d.getElementById('fmt-preview').textContent;
+    out.umaLinhaSo = d.querySelectorAll('#fmt-preview .fmt-line').length === 1 &&
+      saida.indexOf(nl) !== -1 && saida.indexOf(br) === -1;
+    out.unescapeDesligado = !d.getElementById('opt-unescape').checked;
+  }
+
+  return out;
+})()`;
+}
 
 /** Lógica executada dentro do iframe do visualizador. */
 function viewerFrameBody() {
@@ -530,6 +611,46 @@ try {
   }
   console.log('');
 
+  /* ---------------------------------------------------------------
+     /formatar: a promessa da página é transformar uma linha ilegível
+     em leitura — então é isso que a sonda confere, no navegador de
+     verdade: linhas numeradas, cor do realce e o aviso de `\n`
+     literal com o botão que o converte.
+     --------------------------------------------------------------- */
+  console.log('  -- /formatar: formatação no navegador');
+  fs.writeFileSync(CLICK, frameHtml('/formatar', formatFrameBody()), 'utf8');
+  let fmt = null;
+  try {
+    fmt = frameReport(dumpDom(browser, BASE + '/_click.html', 60000));
+  } catch (err) {
+    check('/formatar no navegador', false, err.message);
+  }
+  if (fmt) {
+    check('/formatar: a página abriu sem erro', !fmt.erro, JSON.stringify(fmt.erro));
+    check('/formatar: JSON de uma linha vira várias', fmt.linhas > 4, 'linhas=' + fmt.linhas);
+    check('/formatar: o tipo foi detectado como JSON', fmt.badge === 'JSON', 'badge=' + fmt.badge);
+    check('/formatar: a primeira linha numerada é 1', fmt.primeiraNum === '1', 'num=' + fmt.primeiraNum);
+    check('/formatar: a prévia sai colorida', fmt.realce === true);
+    check('/formatar: copiar e baixar habilitam com conteúdo', fmt.copiar === true && fmt.baixar === true);
+    check('/formatar: o painel de texto aparece na família certa', fmt.grupoTexto === true);
+    check('/formatar: o aviso de \\n literal foi exibido', fmt.dicaAlerta === true);
+    check('/formatar: o botão de converter aparece', fmt.temBotaoConverter === true);
+    check('/formatar: converter o \\n dá duas linhas', fmt.linhasDepois === 2, 'linhas=' + fmt.linhasDepois);
+    check('/formatar: o checkbox de converter ficou ligado', fmt.checkboxLigado === true);
+    check('/formatar: o grupo JSON aparece quando a entrada é JSON', fmt.grupoJson === true);
+    check(
+      '/formatar: remover 1 nível de escape vira JSON formatado',
+      fmt.temOpcaoEscape === true && fmt.escapeVirouJson === true,
+      JSON.stringify(fmt)
+    );
+    check(
+      '/formatar: o texto sai em uma linha só escapado',
+      fmt.temOpcaoUmaLinha === true && fmt.umaLinhaSo === true,
+      JSON.stringify(fmt)
+    );
+    check('/formatar: virar string desliga a conversão de \\n', fmt.unescapeDesligado === true);
+  }
+  console.log('');
 } finally {
   fs.rmSync(PROBE, { force: true });
   fs.rmSync(CLICK, { force: true });

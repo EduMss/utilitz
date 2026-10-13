@@ -60,6 +60,7 @@ docker compose down           # derruba (preserva o volume)
 | `/` | Página inicial: atalhos, exemplos e biblioteca de documentos salvos. |
 | `/visualizar` | Visualizador em tela cheia. Editor e sumário guardam o texto em uma gaveta para deixar a leitura limpia. |
 | `/pdf` | Conversor com tela dividida e painel de configurações. |
+| `/formatar` | Formatação de arquivos: JSON, XML, HTML, Markdown, CSV, texto e código (Python, C#, Java…). Prévia com números de linha, realce de sintaxe e botões de copiar/baixar — tudo no navegador, nada vai para o servidor. |
 
 As duas ferramentas são de tela cheia e por isso não repetem a barra de
 navegação do site. Para não ficarem sem identidade, cada uma mostra a marca
@@ -186,14 +187,22 @@ O Markdown aceita HTML bruto, então a saída passa por um higienizador que remo
 ## Testes
 
 ```bash
-npm test              # integridade + renderização + matriz completa de PDF
+npm test              # integridade + formatação + renderização + matriz completa de PDF
 npm run check         # encoding, chaves CSS e assets referenciados
+npm run test:format   # núcleo de formatação (JSON, XML/HTML, Markdown, CSV, texto, código)
 npm run test:render   # renderização e higienização
 npm run test:pdf      # matriz de presets, temas, numeração e casos-limite
 npm run test:api      # ponta a ponta (exige o servidor rodando)
 npm run test:browser  # render real em Chrome/Edge headless (exige o servidor)
 npm run smoke         # gera um PDF de exemplo com todos os recursos
 ```
+
+O `test:format` exercita `public/js/format-core.js` — o mesmo módulo que roda no
+navegador, carregado direto pelo Node. Cobre o JSON (inclusive o erro com linha e
+coluna), a árvore do XML/HTML, o Markdown (títulos, cercas de código intactas,
+front matter), a tabela do CSV, o `\n` literal do texto simples, o recuo do
+código e a detecção automática; confere também o bundle do highlight.js usado
+pela prévia.
 
 O `test:browser` é o teste que mais importa: ele abre as duas ferramentas em um
 navegador de verdade, semeia um documento e confere se o conteúdo renderizado

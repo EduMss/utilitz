@@ -20,6 +20,10 @@ const FEATURES = [
     text: 'Troque o formato de PNG, JPEG, WebP, GIF, BMP, TIFF, ICO e SVG sem sair do navegador — nada é enviado ao servidor.',
   },
   {
+    title: 'Formatador de arquivos',
+    text: 'JSON, XML, HTML, Markdown, CSV, texto e código (Python, C#, Java…) saem arrumados, realçados e com número de linha.',
+  },
+  {
     title: 'Tipografia a seu gosto',
     text: 'Fonte, corpo, entrelinha, margens, tamanho do papel, tema, cabeçalho, rodapé, sumário e muito mais.',
   },
@@ -134,6 +138,7 @@ function home() {
       <a class="btn btn-primary" href="/visualizar">Visualizar em tela cheia</a>
       <a class="btn btn-ghost" href="/pdf">Converter para PDF</a>
       <a class="btn btn-ghost" href="/imagens">Converter imagens</a>
+      <a class="btn btn-ghost" href="/formatar">Formatar arquivos</a>
     </div>
   </section>
 

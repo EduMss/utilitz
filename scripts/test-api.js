@@ -51,10 +51,19 @@ const MD = '# Olá\n\nUm **texto** com `código`.\n\n## Seção\n\n- a\n- b\n';
     assert.strictEqual(r.status, 200);
   });
 
+  await check('página de formatar responde 200', async () => {
+    const r = await fetch(BASE + '/formatar');
+    assert.strictEqual(r.status, 200);
+    const t = await r.text();
+    assert.ok(/Formatar/.test(t), 'título ausente');
+    // sem o bundle do highlight.js a prévia sai sem cor nenhuma
+    assert.ok(t.includes('src="/vendor/hljs.js'), 'formatar sem o bundle do highlight.js');
+  });
+
   // Regressão: as ferramentas usam classes que vivem no app.css. Se ele deixar
   // de ser carregado, as páginas funcionam mas aparecem sem estilo nenhum.
   await check('todas as páginas carregam os três CSS', async () => {
-    for (const url of ['/', '/visualizar', '/pdf']) {
+    for (const url of ['/', '/visualizar', '/pdf', '/formatar']) {
       const html = await (await fetch(BASE + url)).text();
       for (const css of ['/css/base.css', '/css/markdown.css', '/css/app.css']) {
         // o href pode trazer ?v=<mtime>, por isso o prefixo
@@ -64,7 +73,11 @@ const MD = '# Olá\n\nUm **texto** com `código`.\n\n## Seção\n\n- a\n- b\n';
   });
 
   await check('ferramentas carregam common.js antes do seu script', async () => {
-    for (const [url, script] of [['/visualizar', '/js/viewer.js'], ['/pdf', '/js/pdf.js']]) {
+    for (const [url, script] of [
+      ['/visualizar', '/js/viewer.js'],
+      ['/pdf', '/js/pdf.js'],
+      ['/formatar', '/js/format.js'],
+    ]) {
       const html = await (await fetch(BASE + url)).text();
       const common = html.indexOf('src="/js/common.js');
       const own = html.indexOf('src="' + script);
@@ -95,7 +108,7 @@ const MD = '# Olá\n\nUm **texto** com `código`.\n\n## Seção\n\n- a\n- b\n';
   });
 
   await check('as páginas não são cacheadas', async () => {
-    for (const url of ['/', '/visualizar', '/pdf']) {
+    for (const url of ['/', '/visualizar', '/pdf', '/formatar']) {
       const cache = (await fetch(BASE + url)).headers.get('cache-control') || '';
       assert.ok(/no-cache|no-store/.test(cache), url + ' com cache "' + cache + '"');
     }
@@ -110,6 +123,11 @@ const MD = '# Olá\n\nUm **texto** com `código`.\n\n## Seção\n\n- a\n- b\n';
     for (const id of ['source', 'preview-pages', 'settings', 'toast', 'file-input', 'btn-settings']) {
       assert.ok(pdf.includes('id="' + id + '"'), 'pdf sem #' + id);
     }
+    const fmt = await (await fetch(BASE + '/formatar')).text();
+    for (const id of ['fmt-type', 'fmt-input', 'fmt-preview', 'grp-text', 'grp-json', 'grp-csv',
+      'opt-unescape', 'opt-one-line', 'opt-remove-escapes', 'fmt-copy', 'fmt-download', 'file-input', 'toast']) {
+      assert.ok(fmt.includes('id="' + id + '"'), 'formatar sem #' + id);
+    }
   });
 
   console.log('\n== estáticos ==');
@@ -123,7 +141,10 @@ const MD = '# Olá\n\nUm **texto** com `código`.\n\n## Seção\n\n- a\n- b\n';
     '/js/home.js',
     '/js/viewer.js',
     '/js/pdf.js',
+    '/js/format.js',
+    '/js/format-core.js',
     '/vendor/paged.js',
+    '/vendor/hljs.js',
   ]) {
     await check('serve ' + asset, async () => {
       const r = await fetch(BASE + asset);

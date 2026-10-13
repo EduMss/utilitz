@@ -6,6 +6,7 @@ const { home } = require('../views/home');
 const { viewer } = require('../views/viewer');
 const { pdf } = require('../views/pdf');
 const { images } = require('../views/images');
+const { format } = require('../views/format');
 
 const router = express.Router();
 
@@ -33,6 +34,10 @@ router.get('/pdf', (req, res) => {
 
 router.get('/imagens', (req, res) => {
   page(res, images());
+});
+
+router.get('/formatar', (req, res) => {
+  page(res, format());
 });
 
 module.exports = router;
