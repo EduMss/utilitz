@@ -6,7 +6,6 @@ function viewer() {
   return layout({
     title: 'Visualizar',
     active: '/visualizar',
-    chrome: false,
     bodyClass: 'page-viewer',
     scripts: ['/js/viewer.js'],
     body: `

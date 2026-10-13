@@ -24,7 +24,7 @@
   const toastEl = $('#toast');
 
   const prefs = Object.assign(
-    { zoom: 1, theme: 'escuro', outline: false },
+    { zoom: 1, theme: 'escuro', outline: true },
     storage.get(PREFS_KEY, {})
   );
 
@@ -218,12 +218,16 @@
     }
   }
 
-  function toggleOutline() {
-    prefs.outline = !prefs.outline;
+  function applyOutline() {
     outline.classList.toggle('is-open', prefs.outline);
     outline.setAttribute('aria-hidden', String(!prefs.outline));
     $('#btn-outline').classList.toggle('is-on', prefs.outline);
     savePrefs();
+  }
+
+  function toggleOutline() {
+    prefs.outline = !prefs.outline;
+    applyOutline();
   }
 
   /* Barra flutuante some quando o usuário rola a página. */
@@ -414,7 +418,7 @@
     /* Preferência de tema salva. */
     applyTheme();
     applyZoom();
-    toggleOutline();
+    applyOutline();
 
     const params = new URLSearchParams(window.location.search);
 

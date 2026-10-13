@@ -6,7 +6,6 @@ function pdf() {
   return layout({
     title: 'Converter para PDF',
     active: '/pdf',
-    chrome: false,
     bodyClass: 'page-pdf',
     scripts: ['/vendor/paged.js', '/js/pdf.js'],
     body: `

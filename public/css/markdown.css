@@ -144,7 +144,9 @@
 @media print {
   body { background: #fff !important; }
   .topbar, .v-toolbar, .v-drawer, .v-outline, .v-status, .v-progress, .toast, .stage-hint { display: none !important; }
-  .stage { padding: 0 !important; }
+  /* na impressão o menu não existe: a altura volta ao conteúdo inteiro */
+  body.page-viewer { overflow: visible !important; }
+  .stage { padding: 0 !important; height: auto !important; overflow: visible !important; }
   .md { color: #000; font-size: 11.5pt; }
   .md a { color: #000; }
   .md pre, .md blockquote, .md th, .md td { border-color: #bbb; }

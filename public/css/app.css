@@ -143,8 +143,9 @@
 .page-viewer { overflow: hidden; }
 
 .stage {
-  height: 100vh;
-  height: 100dvh;
+  /* o menu do site ocupa o topo: a altura da tela desconta a barra */
+  height: calc(100vh - var(--topbar-h));
+  height: calc(100dvh - var(--topbar-h));
   overflow-y: auto;
   overflow-x: hidden;
   scroll-behavior: smooth;
@@ -180,7 +181,8 @@
 /* barra flutuante */
 .v-toolbar {
   position: fixed;
-  top: 14px;
+  /* abaixo do menu do site, senão a barra flutuante cobre a navegação */
+  top: calc(var(--topbar-h) + 14px);
   left: 50%;
   z-index: 60;
   display: flex;
@@ -195,7 +197,7 @@
   transform: translateX(-50%);
   transition: opacity 0.25s, transform 0.25s;
 }
-.v-toolbar.is-hidden { opacity: 0; transform: translate(-50%, -70px); pointer-events: none; }
+.v-toolbar.is-hidden { opacity: 0; transform: translate(-50%, -140px); pointer-events: none; }
 
 .tb-logo {
   display: grid;
@@ -366,7 +368,8 @@
 
 .v-progress {
   position: fixed;
-  top: 0;
+  /* começa abaixo do menu, para não desenhar por cima dele */
+  top: var(--topbar-h);
   left: 0;
   z-index: 65;
   width: 100%;
@@ -423,16 +426,16 @@
    Conversor PDF (tela dividida)
    --------------------------------------------------------- */
 
-.page-pdf { overflow: hidden; height: 100vh; height: 100dvh; }
+.page-pdf { overflow: hidden; height: calc(100vh - var(--topbar-h)); height: calc(100dvh - var(--topbar-h)); }
 
 .split {
   display: grid;
   grid-template-columns: var(--split-left, 1fr) 6px 1fr;
   /* sem isto as colunas acompanham a altura da página inteira */
-  grid-template-rows: 100vh;
-  grid-template-rows: 100dvh;
-  height: 100vh;
-  height: 100dvh;
+  grid-template-rows: calc(100vh - var(--topbar-h));
+  grid-template-rows: calc(100dvh - var(--topbar-h));
+  height: calc(100vh - var(--topbar-h));
+  height: calc(100dvh - var(--topbar-h));
 }
 .split.is-editor-collapsed { grid-template-columns: 0 0 1fr; }
 
@@ -562,14 +565,15 @@
 
 .settings {
   position: fixed;
-  top: 0;
+  /* abaixo do menu: o menu continua clicável com as configurações abertas */
+  top: var(--topbar-h);
   right: 0;
   z-index: 90;
   display: grid;
   grid-template-rows: auto 1fr auto;
   width: min(390px, 96vw);
-  height: 100vh;
-  height: 100dvh;
+  height: calc(100vh - var(--topbar-h));
+  height: calc(100dvh - var(--topbar-h));
   background: #0a1024;
   border-left: 1px solid var(--line);
   box-shadow: var(--shadow);

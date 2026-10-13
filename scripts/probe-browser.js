@@ -6,10 +6,11 @@
  * Uso: node scripts/probe-browser.js      (exige o servidor rodando)
  */
 
-const { execFileSync } = require('node:child_process');
+const { execFileSync, spawnSync } = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const { previewReady } = require('./probe-cdp-dump');
 
 const ROOT = path.resolve(__dirname, '..');
 const PROBE = path.join(ROOT, 'public', '_probe.html');
@@ -88,8 +89,9 @@ location.replace(go);
 
 /**
  * Carrega uma página no navegador e devolve o DOM já com o JS executado.
- * `budget` é o tempo virtual em ms: a paginação do Paged.js faz trabalho real
- * de layout e fontes, e um orçamento curto captura o DOM no meio da paginação.
+ * `budget` é o tempo virtual em ms; ele serve para páginas simples
+ * assentarem. Quando a página precisa paginar (o /pdf com Paged.js), a
+ * espera é em tempo real e sai do `probe-cdp-dump.js` — ver `dumpDomReady`.
  */
 function dumpDom(browser, url, budget) {
   // perfil novo a cada execução: sem cache de execuções anteriores
@@ -258,6 +260,44 @@ function clickHtml() {
 }
 
 /**
+ * Corpo do quadro que confere o estado do sumário: clica no botão de verdade,
+ * navega para fora e volta, e mede se o estado sobreviveu. O estado é uma
+ * preferência salva — se a carga da página o inverter em vez de aplicá-lo,
+ * o sumário some (ou reaparece) sozinho a cada navegação.
+ */
+function viewerOutlineBody() {
+  return `(async function () {
+  var w = fr.contentWindow, d = w.document;
+  var out = {};
+  var sleep = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
+  var esperaQuadro = function () {
+    return new Promise(function (r) { fr.addEventListener('load', function () { setTimeout(r, 400); }, { once: true }); });
+  };
+  var estado = function () {
+    var o = fr.contentDocument.getElementById('outline');
+    return o ? o.classList.contains('is-open') : null;
+  };
+
+  d.getElementById('btn-outline').click();
+  out.depoisDoClique = estado();
+  await sleep(100);
+
+  var naSaida = esperaQuadro();
+  fr.contentWindow.location.href = '/';
+  await naSaida;
+
+  var naVolta = esperaQuadro();
+  fr.contentWindow.location.href = '/visualizar';
+  await naVolta;
+  out.aposVoltar = estado();
+
+  out.btnLigado = fr.contentDocument.getElementById('btn-outline')
+    .classList.contains('is-on') === out.aposVoltar;
+  return out;
+})()`;
+}
+
+/**
  * Lógica executada dentro do iframe do /formatar: cola um JSON de uma linha
  * só e confere se a prévia vira leitura de verdade (linhas, números e cor),
  * depois exercita o aviso de `\n` literal e o botão que o converte.
@@ -381,24 +421,26 @@ function viewerFrameBody() {
 }
 
 /**
- * Carrega a página repetindo com orçamentos crescentes até `ready(dom)` passar.
- * O --dump-dom dispara quando o tempo virtual acaba, e a paginação do Paged.js
- * faz trabalho real de layout: numa máquina lenta um orçamento fixo captura o
- * DOM no meio do caminho e gera falha falso-positiva.
+ * Carrega a página e devolve o DOM com o render concluído.
+ *
+ * Quando há `ready`, a espera roda em tempo real num processo filho que
+ * conversa com o DevTools Protocol até o predicado passar (ver
+ * `probe-cdp-dump.js`). Sem `ready` basta o --dump-dom com tempo virtual:
+ * as páginas sem paginação assentam dentro do orçamento.
  */
 function dumpDomReady(browser, url, ready) {
-  const budgets = ready ? [30000, 60000, 120000, 180000] : [30000];
-  let dom = '';
-  for (const budget of budgets) {
-    dom = dumpDom(browser, url, budget);
-    if (!ready || ready(dom)) return dom;
+  if (!ready) return dumpDom(browser, url, 30000);
+  const espera = Number(process.env.PROBE_WAIT) || 60000;
+  const r = spawnSync(
+    process.execPath,
+    [path.join(__dirname, 'probe-cdp-dump.js'), url, String(espera), browser],
+    { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, timeout: espera + 60000 }
+  );
+  if (r.status !== 0) {
+    throw new Error((r.stderr || '').trim() || 'espera do render terminou com status ' + r.status);
   }
-  return dom;
+  return r.stdout;
 }
-
-/** A prévia terminou de paginar: folhas prontas e contador preenchido. */
-const previewReady = (dom) =>
-  /pagedjs_sheet/.test(dom) && !/id="pages-info"[^>]*>—/.test(dom);
 
 let failures = 0;
 function check(name, cond, detail) {
@@ -505,6 +547,24 @@ try {
     }
     console.log('');
   }
+
+  /* ---------------------------------------------------------------
+     O sumário do visualizador precisa sobreviver a sair e voltar.
+     --------------------------------------------------------------- */
+  console.log('  -- /visualizar: o sumário guarda o estado');
+  let sumario = null;
+  try {
+    fs.writeFileSync(CLICK, frameHtml('/visualizar', viewerOutlineBody()), 'utf8');
+    sumario = frameReport(dumpDom(browser, BASE + '/_click.html', 60000));
+  } catch (err) {
+    check('sumário do visualizador', false, err.message);
+  }
+  if (sumario) {
+    check('o clique no botão muda o estado do sumário', typeof sumario.depoisDoClique === 'boolean', JSON.stringify(sumario));
+    check('o estado do sumário sobrevive a navegar e voltar', sumario.depoisDoClique === sumario.aposVoltar, JSON.stringify(sumario));
+    check('o botão reflete o estado do sumário', sumario.btnLigado === true, JSON.stringify(sumario));
+  }
+  console.log('');
 
   /* ---------------------------------------------------------------
      A tela dividida precisa continuar utilizável depois de paginar.
