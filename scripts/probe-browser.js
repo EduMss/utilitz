@@ -351,7 +351,7 @@ function formatFrameBody() {
   ta.dispatchEvent(new w.Event('input', { bubbles: true }));
   await sleep(800);
 
-  out.grupoJson = !d.getElementById('grp-json').hidden;
+  out.grupoEscapes = !d.getElementById('grp-escapes').hidden;
   var box = d.getElementById('opt-remove-escapes');
   out.temOpcaoEscape = !!box;
   box.checked = true;
@@ -359,6 +359,22 @@ function formatFrameBody() {
   await sleep(400);
   out.escapeVirouJson = d.querySelectorAll('#fmt-preview .fmt-line').length > 1 &&
     d.getElementById('fmt-preview').textContent.indexOf(barras + asp) === -1;
+
+  /* XML escapado: a mesma opção precisa existir na família XML,
+     com o título trocando de nome junto */
+  ta.value = '<agenda>' + nl + '<pessoa nome=' + barras + asp + 'Ana' + barras + asp + '/>' +
+             nl + '</agenda>';
+  ta.dispatchEvent(new w.Event('input', { bubbles: true }));
+  await sleep(800);
+
+  out.grupoEscapesXml = !d.getElementById('grp-escapes').hidden;
+  out.tituloEscape = d.getElementById('escapes-title').textContent;
+  box = d.getElementById('opt-remove-escapes');
+  box.checked = true;
+  box.dispatchEvent(new w.Event('change', { bubbles: true }));
+  await sleep(400);
+  out.escapeVirouXml = d.querySelectorAll('#fmt-preview .fmt-line').length > 1 &&
+    d.getElementById('fmt-preview').textContent.indexOf(nl) === -1;
 
   /* texto multilinha: em uma linha só, escapado como string */
   ta.value = 'primeira linha' + br + 'outra linha';
@@ -754,10 +770,20 @@ try {
     check('/formatar: o botão de converter aparece', fmt.temBotaoConverter === true);
     check('/formatar: converter o \\n dá duas linhas', fmt.linhasDepois === 2, 'linhas=' + fmt.linhasDepois);
     check('/formatar: o checkbox de converter ficou ligado', fmt.checkboxLigado === true);
-    check('/formatar: o grupo JSON aparece quando a entrada é JSON', fmt.grupoJson === true);
+    check('/formatar: o grupo de escape aparece quando a entrada é JSON', fmt.grupoEscapes === true);
     check(
       '/formatar: remover 1 nível de escape vira JSON formatado',
       fmt.temOpcaoEscape === true && fmt.escapeVirouJson === true,
+      JSON.stringify(fmt)
+    );
+    check(
+      '/formatar: o grupo de escape aparece também no XML, com o título certo',
+      fmt.grupoEscapesXml === true && fmt.tituloEscape === 'XML escapado',
+      JSON.stringify(fmt)
+    );
+    check(
+      '/formatar: remover 1 nível de escape no XML vira marcação formatada',
+      fmt.escapeVirouXml === true,
       JSON.stringify(fmt)
     );
     check(

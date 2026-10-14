@@ -106,8 +106,10 @@
     grpReindent: $('#grp-reindent'),
     grpClean: $('#grp-clean'),
     grpText: $('#grp-text'),
-    grpJson: $('#grp-json'),
+    grpEscapes: $('#grp-escapes'),
     grpCsv: $('#grp-csv'),
+    escapesTitle: $('#escapes-title'),
+    escapesHint: $('#escapes-hint'),
     crlf: $('#opt-crlf'),
     trailing: $('#opt-trailing'),
     blank: $('#opt-blank'),
@@ -267,8 +269,8 @@
      --------------------------------------------------------- */
 
   const GROUPS = {
-    json: { indent: true, clean: true, json: true },
-    xml: { indent: true, clean: true },
+    json: { indent: true, clean: true, escapes: true },
+    xml: { indent: true, clean: true, escapes: true },
     html: { indent: true, clean: true },
     markdown: { clean: true },
     csv: { csv: true },
@@ -282,10 +284,18 @@
     el.grpClean.hidden = !group.clean;
     el.grpReindent.hidden = !group.reindent;
     el.grpText.hidden = !group.text;
-    el.grpJson.hidden = !group.json;
+    el.grpEscapes.hidden = !group.escapes;
     el.grpCsv.hidden = !group.csv;
 
     if (group.indent) el.indentHint.textContent = indentHint(family, el.indent.value);
+    if (group.escapes) {
+      const noun = family === 'xml' ? 'XML' : 'JSON';
+      el.escapesTitle.textContent = noun + ' escapado';
+      el.escapesHint.innerHTML =
+        'Use quando o ' + noun + ' chegou como string escapada — de uma linha só, ' +
+        'cheia de <code>\\n</code> e <code>\\"</code> — e precisa voltar a ser ' +
+        noun + ' de verdade.';
+    }
   }
 
   function indentHint(family, indent) {

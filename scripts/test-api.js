@@ -134,7 +134,7 @@ const MD = '# Olá\n\nUm **texto** com `código`.\n\n## Seção\n\n- a\n- b\n';
       assert.ok(pdf.includes('id="' + id + '"'), 'pdf sem #' + id);
     }
     const fmt = await (await fetch(BASE + '/formatar')).text();
-    for (const id of ['fmt-type', 'fmt-input', 'fmt-preview', 'grp-text', 'grp-json', 'grp-csv',
+    for (const id of ['fmt-type', 'fmt-input', 'fmt-preview', 'grp-text', 'grp-escapes', 'grp-csv',
       'opt-unescape', 'opt-one-line', 'opt-remove-escapes', 'fmt-copy', 'fmt-download', 'file-input', 'toast']) {
       assert.ok(fmt.includes('id="' + id + '"'), 'formatar sem #' + id);
     }

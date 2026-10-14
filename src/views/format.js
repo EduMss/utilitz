@@ -116,13 +116,13 @@ function format() {
       </p>
     </div>
 
-    <div class="convi-group fmt-group" id="grp-json" hidden>
-      <h4>JSON escapado</h4>
+    <div class="convi-group fmt-group" id="grp-escapes" hidden>
+      <h4 id="escapes-title">JSON escapado</h4>
       <label class="set-check">
         <input type="checkbox" id="opt-remove-escapes">
         <span>Remover 1 nível de escape (<code>\\n</code>, <code>\\"</code>, <code>\\\\</code>)</span>
       </label>
-      <p class="set-hint" id="json-hint">
+      <p class="set-hint" id="escapes-hint">
         Use quando o JSON chegou como string escapada — de uma linha só, cheia
         de <code>\\n</code> e <code>\\"</code> — e precisa voltar a ser JSON de
         verdade.

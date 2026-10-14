@@ -13,7 +13,8 @@
                veio como string (`"{\"a\": 1}"`) volta a ser JSON;
    - xml/html  impressão em árvore: uma tag por linha, texto curto
                no mesmo lance da tag, conteúdo bruto de pre/script
-               intacto;
+               intacto; com a opção ligada, o XML também aceita
+               remover um nível de escape antes de ler;
    - markdown  espaços no fim, cercas de código, listas, títulos ATX,
                setext -> ATX e linha em branco sobrando — tudo fora
                das cercas de código;
@@ -129,7 +130,7 @@
     /* texto */
     unescapeNewlines: false, // `\n` literal vira quebra de linha
     escapeToOneLine: false,  // escapa e junta tudo em uma linha só
-    /* json */
+    /* json e xml */
     removeEscapes: false,    // remove 1 nível de escape antes de ler
   };
 
@@ -483,13 +484,15 @@
 
   /**
    * O conteúdo chegou "como string": remove um nível de escape antes de ler.
-   *  - `"{\"a\": 1}"` é uma string JSON — o valor dela é o JSON um nível
-   *    abaixo e é ele que segue para o formato;
-   *  - `{\"a\": 1}` nem é JSON válido — tira o escape do texto cru;
+   * É o mesmo passe para JSON e XML:
+   *  - `"{\"a\": 1}"` é uma string que embrulha o conteúdo um nível abaixo
+   *    e é ele que segue para o formato;
+   *  - `{\"a\": 1}` (ou `<a>\n<b/>\n</a>`) nem é válido — tira o escape do
+   *    texto cru;
    *  - JSON que já é válido (objeto, número...) fica intacto: o escape
    *    dele é o conteúdo, não um embrulho.
    */
-  function removeJsonEscapes(text) {
+  function removeOneEscapeLevel(text) {
     try {
       const value = JSON.parse(text);
       return typeof value === 'string' ? value : text;
@@ -501,7 +504,7 @@
   function formatJson(source, opts) {
     const width = opts.indent === 'keep' ? 2 : opts.indent === 'tab' ? 4 : unitOf(opts.indent);
     const stripped = source.replace(/^\uFEFF/, '');
-    const text = opts.removeEscapes ? removeJsonEscapes(stripped) : stripped;
+    const text = opts.removeEscapes ? removeOneEscapeLevel(stripped) : stripped;
     try {
       let out = JSON.stringify(JSON.parse(text), null, width);
       if (opts.indent === 'tab') out = out.replace(/^ +/gm, (lead) => makeLeading(lead.length, 'tab', 4));
@@ -774,7 +777,9 @@
   function formatMarkup(source, opts, family) {
     const indent = opts.indent === 'keep' ? '2' : opts.indent === 'tab' ? 'tab' : opts.indent;
     const unit = indent === 'tab' ? '\t' : ' '.repeat(unitOf(indent));
-    const tokens = tokenizeMarkup(source);
+    const stripped = source.replace(/^\uFEFF/, '');
+    const text = opts.removeEscapes ? removeOneEscapeLevel(stripped) : stripped;
+    const tokens = tokenizeMarkup(text);
     const tree = buildMarkupTree(tokens, family === 'html');
     const out = [];
 
@@ -1544,7 +1549,7 @@
     opts.reindent = family === 'code' && opts.reindent;
     opts.unescapeNewlines = family === 'text' && opts.unescapeNewlines;
     opts.escapeToOneLine = family === 'text' && opts.escapeToOneLine;
-    opts.removeEscapes = family === 'json' && opts.removeEscapes;
+    opts.removeEscapes = (family === 'json' || family === 'xml') && opts.removeEscapes;
     if (family === 'markdown' || family === 'csv') opts.indent = 'keep';
 
     let outcome;

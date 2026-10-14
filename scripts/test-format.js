@@ -160,6 +160,32 @@ check('XML deixa comentários e prólogo em linha própria', () => {
   assert.strictEqual(result.text, '<?xml version="1.0"?>\n<!-- nota -->\n<a>\n  <b>x</b>\n</a>');
 });
 
+check('XML: remover 1 nível de escape desembrulha o texto', () => {
+  const result = run('<agenda>\\n<pessoa nome=\\"Ana\\"/>\\n</agenda>', 'xml', {
+    removeEscapes: true, indent: '2',
+  });
+  assert.strictEqual(result.error, null, 'não deveria ter erro');
+  assert.strictEqual(result.text, '<agenda>\n  <pessoa nome="Ana" />\n</agenda>');
+});
+
+check('XML: remover 1 nível de escape abre a string que envolve o XML', () => {
+  const result = run('"<agenda>\\n<pessoa nome=\\"Ana\\"/>\\n</agenda>"', 'xml', {
+    removeEscapes: true, indent: '2',
+  });
+  assert.strictEqual(result.error, null, 'não deveria ter erro');
+  assert.strictEqual(result.text, '<agenda>\n  <pessoa nome="Ana" />\n</agenda>');
+});
+
+check('XML escapado sem a opção mantém o texto escapado', () => {
+  const result = run('<agenda>\\n<pessoa/>\\n</agenda>', 'xml', { indent: '2' });
+  assert.ok(result.text.indexOf('\\n') >= 0, 'o \\n literal deveria continuar no lugar');
+});
+
+check('HTML: a opção de remover escape não mexe nele', () => {
+  const result = run('<div>\\n<span>a</span>\\n</div>', 'html', { removeEscapes: true, indent: '2' });
+  assert.strictEqual(result.changed, false, 'o HTML não tem remoção de escape');
+});
+
 /* ---------------------------------------------------------- *
  * Markdown
  * ---------------------------------------------------------- */
