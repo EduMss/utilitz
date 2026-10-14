@@ -23,6 +23,14 @@
     Legal: { label: 'Legal', width: 215.9, height: 355.6 },
   };
 
+  /** Presets de margem (mm) do conversor de HTML para PDF. */
+  var MARGIN_PRESETS = {
+    padrao: { label: 'Padrão (15 mm)', top: 15, right: 15, bottom: 15, left: 15 },
+    estreitas: { label: 'Estreitas (10 mm)', top: 10, right: 10, bottom: 10, left: 10 },
+    largas: { label: 'Largas (25 mm)', top: 25, right: 25, bottom: 25, left: 25 },
+    nenhuma: { label: 'Sem margem', top: 0, right: 0, bottom: 0, left: 0 },
+  };
+
   /** Famílias tipográficas disponíveis nas três rotas (A4). */
   var FONT_FAMILIES = {
     serif: { label: 'Serifada (Times)', css: "'Times New Roman', Times, Georgia, serif" },
@@ -244,6 +252,7 @@
 
   return {
     PAGE_SIZES: PAGE_SIZES,
+    MARGIN_PRESETS: MARGIN_PRESETS,
     FONT_FAMILIES: FONT_FAMILIES,
     DEFAULTS: DEFAULTS,
     POSITIONS: POSITIONS,

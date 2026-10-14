@@ -565,11 +565,12 @@ function sleep(ms) {
  * @param {string} htmlPath
  * @param {string} pdfPath
  * @param {string} profile
+ * @param {{ printBackground?: boolean }} [options]
  * @returns {Promise<void>}
  */
-function runChrome(browser, htmlPath, pdfPath, profile) {
+function runChrome(browser, htmlPath, pdfPath, profile, options) {
   if (typeof WebSocket === 'function') {
-    return runChromeViaCdp(browser, htmlPath, pdfPath, profile).catch((err) => {
+    return runChromeViaCdp(browser, htmlPath, pdfPath, profile, options).catch((err) => {
       console.warn('[pdf] CDP falhou, tentando o modo CLI: ' + err.message);
       return runChromeCli(browser, htmlPath, pdfPath, profile);
     });
@@ -620,7 +621,7 @@ function runChromeCli(browser, htmlPath, pdfPath, profile) {
  * impressão só depois de `data-pagedjs-ready`. É o que guarda o PDF de sair
  * em branco (Paged.js no meio do caminho) ou com fonte substituta.
  */
-async function runChromeViaCdp(browser, htmlPath, pdfPath, profile) {
+async function runChromeViaCdp(browser, htmlPath, pdfPath, profile, options = {}) {
   const url = pathToFileURL(htmlPath).href;
   const deadline = Date.now() + CDP_TIMEOUT;
 
@@ -720,8 +721,10 @@ async function runChromeViaCdp(browser, htmlPath, pdfPath, profile) {
       const t0 = Date.now();
       while (Date.now() < deadline) {
         const evalResult = await send('Runtime.evaluate', {
-          expression: 'JSON.stringify({ready:document.documentElement.getAttribute("data-pagedjs-ready"),' +
-            'error:document.documentElement.getAttribute("data-pagedjs-error")})',
+          expression: 'JSON.stringify({ready:document.documentElement.getAttribute("data-pdf-ready")||' +
+            'document.documentElement.getAttribute("data-pagedjs-ready"),' +
+            'error:document.documentElement.getAttribute("data-pdf-error")||' +
+            'document.documentElement.getAttribute("data-pagedjs-error")})',
           returnByValue: true,
         }, sessionId).catch((err) => {
           dbg('evaluate falhou:', err.message);
@@ -753,7 +756,7 @@ async function runChromeViaCdp(browser, htmlPath, pdfPath, profile) {
 
       const tPrint = Date.now();
       const print = await send('Page.printToPDF', {
-        printBackground: true,
+        printBackground: options.printBackground !== false,
         preferCSSPageSize: true,
         displayHeaderFooter: false,
         marginTop: 0,
@@ -803,10 +806,169 @@ async function renderPdf(source, rawSettings = {}, options = {}) {
   }
 }
 
+/* ------------------------------------------------------------------ *
+ * HTML -> PDF (página /html-pdf)
+ * ------------------------------------------------------------------ */
+
+/** Arredonda milímetros sem deixar rabo de vírgula no CSS. */
+function cssNumber(value) {
+  return String(Math.round(Number(value) * 100) / 100);
+}
+
+/**
+ * Margens escolhidas na página: um preset pelo nome (`padrao`, `largas`...)
+ * ou um objeto com `top/right/bottom/left` em mm. Qualquer coisa fora do
+ * catálogo cai no padrão de 15 mm — margem que não existe vira buraco no PDF.
+ */
+function resolveMargins(margins) {
+  const preset = shared.MARGIN_PRESETS[String(margins == null ? 'padrao' : margins)];
+  if (preset) return { top: preset.top, right: preset.right, bottom: preset.bottom, left: preset.left };
+
+  const pick = (key) => {
+    const n = Number(margins && margins[key]);
+    return Number.isFinite(n) && n >= 0 ? n : 15;
+  };
+  return { top: pick('top'), right: pick('right'), bottom: pick('bottom'), left: pick('left') };
+}
+
+/**
+ * Regra `@page` com o papel e as margens pedidos na tela.
+ *
+ * Ela entra no começo do documento, então um `@page` escrito no próprio HTML
+ * continua valendo mais (o CSS do Chrome junta as regras, e a última declaração
+ * de cada propriedade vence).
+ */
+function printCss(options) {
+  const size = shared.PAGE_SIZES[options.pageSize] || shared.PAGE_SIZES.A4;
+  const landscape = options.orientation === 'paisagem' || options.orientation === 'landscape';
+  const width = landscape ? size.height : size.width;
+  const height = landscape ? size.width : size.height;
+  const m = resolveMargins(options.margins);
+
+  return (
+    '@page {\n' +
+    '  size: ' + cssNumber(width) + 'mm ' + cssNumber(height) + 'mm;\n' +
+    '  margin: ' + cssNumber(m.top) + 'mm ' + cssNumber(m.right) + 'mm ' +
+    cssNumber(m.bottom) + 'mm ' + cssNumber(m.left) + 'mm;\n' +
+    '}\n' +
+    /* fundo colorido sai no PDF como sai na tela */
+    'html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }'
+  );
+}
+
+/**
+ * Sinal de prontidão do documento: o Chrome só imprime quando `data-pdf-ready`
+ * aparece — o mesmo protocolo do Paged.js no PDF de markdown. As imagens são
+ * decodificadas antes (imagem fora da área de visão decodifica tarde e a folha
+ * sai curta) e uma trava de 20 s garante que uma imagem presa não vire um PDF
+ * em branco.
+ */
+const HTML_READY_SCRIPT = `
+<script data-html-pdf-ready>
+(function () {
+  var root = document.documentElement;
+  function mark(name) { root.setAttribute('data-pdf-' + name, '1'); }
+  function fontsReady() {
+    if (!document.fonts || !document.fonts.ready) return Promise.resolve();
+    return document.fonts.ready.then(function () {}, function () {});
+  }
+  function imagesReady() {
+    var imgs = Array.prototype.slice.call(document.images || []);
+    return Promise.all(imgs.map(function (img) {
+      var done = img.complete && img.naturalWidth > 0
+        ? Promise.resolve()
+        : (img.decode ? img.decode().catch(function () {}) : Promise.resolve());
+      return Promise.race([done, new Promise(function (r) { setTimeout(r, 8000); })]);
+    }));
+  }
+  setTimeout(function () { if (!root.getAttribute('data-pdf-ready')) mark('ready'); }, 20000);
+  window.addEventListener('load', function () {
+    imagesReady().then(fontsReady).then(function () { mark('ready'); }, function () { mark('ready'); });
+  });
+})();
+</script>`;
+
+/**
+ * Monta o documento que o Chrome imprime.
+ *
+ * Um HTML inteiro (`<!doctype html>` ou `<html>`) é usado como está, recebendo
+ * só o CSS de impressão e o script de prontidão; um pedaço solto (`<h1>oi</h1>`)
+ * ganha um documento em volta, com `<title>` e charset.
+ *
+ * @param {string} source
+ * @param {{ title?: string, pageSize?: string, orientation?: string,
+ *           margins?: string|object }} [options]
+ * @returns {string}
+ */
+function buildHtmlDocument(source, options = {}) {
+  const html = String(source == null ? '' : source).replace(/^\uFEFF/, '');
+  const style = '<style data-html-pdf-print>\n' + printCss(options) + '\n</style>';
+  const trimmed = html.trimStart();
+
+  if (!/^<!doctype/i.test(trimmed) && !/^<html[\s>]/i.test(trimmed)) {
+    return (
+      '<!doctype html>\n<html lang="pt-BR">\n<head>\n<meta charset="utf-8">\n' +
+      '<title>' + escapeHtml(options.title || 'Documento') + '</title>\n' +
+      style + '\n</head>\n<body>\n' + html + '\n' + HTML_READY_SCRIPT + '\n</body>\n</html>'
+    );
+  }
+
+  /* Documento inteiro: o CSS entra no começo do <head> para que as regras da
+     própria página (que vêm depois) continuem valendo mais. */
+  let out = html;
+  if (/<head(\s[^>]*)?>/i.test(out)) {
+    out = out.replace(/<head(\s[^>]*)?>/i, (tag) => tag + '\n' + style);
+  } else if (/<html(\s[^>]*)?>/i.test(out)) {
+    out = out.replace(/<html(\s[^>]*)?>/i, (tag) => tag + '\n<head>\n' + style + '\n</head>');
+  } else {
+    out = style + '\n' + out;
+  }
+
+  if (/<\/body\s*>/i.test(out)) out = out.replace(/<\/body\s*>/i, HTML_READY_SCRIPT + '\n</body>');
+  else if (/<\/html\s*>/i.test(out)) out = out.replace(/<\/html\s*>/i, HTML_READY_SCRIPT + '\n</html>');
+  else out += HTML_READY_SCRIPT;
+
+  return out;
+}
+
+/**
+ * Converte HTML em PDF com o Chrome.
+ * @param {string} source página inteira ou pedaço solto de HTML
+ * @param {{ title?: string, pageSize?: string, orientation?: string,
+ *           margins?: string|object, printBackground?: boolean }} [options]
+ * @returns {Promise<Buffer>}
+ */
+async function renderHtmlPdf(source, options = {}) {
+  const browser = resolveChrome();
+  if (!browser) {
+    const err = new Error('Nenhum Chrome/Chromium/Edge foi encontrado para gerar o PDF.');
+    err.code = 'CHROME_NOT_FOUND';
+    throw err;
+  }
+
+  const html = buildHtmlDocument(source, options);
+  const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'html-chrome-'));
+  const htmlPath = path.join(dir, 'pagina.html');
+  const pdfPath = path.join(dir, 'pagina.pdf');
+  const profile = path.join(dir, 'profile');
+
+  try {
+    await fsp.writeFile(htmlPath, html, 'utf8');
+    await runChrome(browser, htmlPath, pdfPath, profile, {
+      printBackground: options.printBackground !== false,
+    });
+    return await fsp.readFile(pdfPath);
+  } finally {
+    await fsp.rm(dir, { recursive: true, force: true }).catch(() => {});
+  }
+}
+
 module.exports = {
   chromeEnabled,
   resolveChrome,
   resetChromeCache,
   renderPdf,
   buildHtml,
+  buildHtmlDocument,
+  renderHtmlPdf,
 };

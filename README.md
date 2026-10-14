@@ -61,6 +61,7 @@ docker compose down           # derruba (preserva o volume)
 | `/visualizar` | Visualizador em tela cheia. Editor e sumário guardam o texto em uma gaveta para deixar a leitura limpia. |
 | `/pdf` | Conversor com tela dividida e painel de configurações. |
 | `/formatar` | Formatação de arquivos: JSON, XML, HTML, Markdown, CSV, texto e código (Python, C#, Java…). Prévia com números de linha, realce de sintaxe e botões de copiar/baixar — tudo no navegador, nada vai para o servidor. |
+| `/html-pdf` | Conversor de HTML para PDF: página inteira ou pedaço solto, com prévia em iframe, papel, margens, orientação e impressão de fundos. |
 | `/notas` | Bloco de notas compartilhado: uma sala efêmera por link, edição em tempo real e senha opcional. |
 | `/drive` | Drive temporário: arquivos por link público ou privado, com limite por upload e limpeza automática depois do prazo. |
 
@@ -72,6 +73,23 @@ barra do editor, e as duas levam de volta para `/`.
 O texto escrito na página inicial segue para a ferramenta escolhida. A passagem
 é feita por uma chave de uso único (`md:handoff`), separada do rascunho de cada
 página, para o título não se misturar ao texto salvo.
+
+## Conversor de HTML para PDF
+
+A `/html-pdf` recebe o HTML colado (uma página inteira ou só um pedaço), mostra
+a prévia num iframe isolado e manda gerar o PDF pela `POST /api/html-pdf`. O
+servidor monta o documento com `src/lib/chrome.js` — um pedaço solto ganha
+`<doctype>`, charset e a regra `@page` com o papel e as margens escolhidos na
+tela; uma página inteira é preservada, e um `@page` escrito nela continua
+valendo mais, porque o CSS de impressão entra no começo do `<head>`. As imagens
+são decodificadas e as fontes carregadas antes da impressão, e um sinal
+`data-pdf-ready` (o mesmo protocolo do Paged.js) segura o Chrome até o
+documento estar pronto — um `<img>` preso nunca vira PDF em branco.
+
+Diferente do PDF de markdown, não há plano B no servidor: o PDFKit não lê HTML,
+então sem Chrome/Chromium/Edge a API responde `503` com a explicação e o botão
+**Imprimir** da página resolve pelo diálogo nativo do navegador ("Salvar como
+PDF"). O HTML só trafega entre a página e o servidor da sua própria máquina.
 
 ## Salas compartilhadas
 
@@ -141,6 +159,7 @@ inserção ficam em um módulo compartilhado, `public/js/images.js`.
 | `POST` | `/api/render` | Recebe `{ markdown }` e devolve `{ html, headings, stats }`. |
 | `POST` | `/api/stats` | Recebe `{ markdown }` e devolve contagens de palavras, caracteres, títulos e tempo de leitura. |
 | `POST` | `/api/pdf` | Recebe `{ markdown, settings, title, inline }` e devolve o arquivo PDF. |
+| `POST` | `/api/html-pdf` | Recebe `{ html, title, pageSize, orientation, margins, printBackground, inline }` e devolve o PDF impresso pelo Chrome. Responde `503` com instruções quando não há navegador instalado. |
 | `GET` | `/api/settings` | Devolve os padrões, presets, temas, tamanhos de página e fontes. |
 | `GET` | `/api/library` | Lista os documentos salvos (sem o conteúdo). |
 | `GET` | `/api/library/:id` | Devolve um documento completo. |
@@ -244,11 +263,12 @@ O Markdown aceita HTML bruto, então a saída passa por um higienizador que remo
 ## Testes
 
 ```bash
-npm test              # integridade + formatação + renderização + matriz de PDF + salas
+npm test              # integridade + formatação + renderização + matriz de PDF + html->pdf + salas
 npm run check         # encoding, chaves CSS e assets referenciados
 npm run test:format   # núcleo de formatação (JSON, XML/HTML, Markdown, CSV, texto, código)
 npm run test:render   # renderização e higienização
 npm run test:pdf      # matriz de presets, temas, numeração e casos-limite
+npm run test:html-pdf # montador de documento e impressão do conversor de HTML para PDF
 npm run test:salas    # núcleo das salas: expiração, senha, limites, upload e download
 npm run test:api      # ponta a ponta (exige o servidor rodando)
 npm run test:browser  # render real em Chrome/Edge headless (exige o servidor)
@@ -272,8 +292,10 @@ visível, não está coberto e realmente fecha. O mesmo harness abre o `/pdf` e
 mede a área do editor, da prévia e dos botões, checando que o clique chega ao
 *Baixar PDF*. Conferir o HTML não bastaria — um botão pode estar no DOM com o
 listener faltando, ou presente e rolado para fora da tela, e nenhum dos dois
-aparece no `curl`. Se faltar o Chrome ou o Edge, ele é pulado em vez de
-falhar.
+aparece no `curl`. O mesmo harness abre o `/html-pdf`, cola um HTML na tela
+dividida, confere a prévia no iframe e clica em *Gerar PDF* — o download é
+interceptado na âncora, como no `/pdf`. Se faltar o Chrome ou o Edge, ele é
+pulado em vez de falhar.
 
 O `test:salas` é unitário e não precisa de servidor: cobre o núcleo de
 `src/lib/salas.js` — expiração por inatividade e renovação do relógio, hash

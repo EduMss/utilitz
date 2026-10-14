@@ -91,6 +91,7 @@ const server = app.listen(PORT, HOST, () => {
   console.log('  Visualizar  http://localhost:' + PORT + '/visualizar');
   console.log('  PDF         http://localhost:' + PORT + '/pdf');
   console.log('  Imagens     http://localhost:' + PORT + '/imagens');
+  console.log('  HTML->PDF   http://localhost:' + PORT + '/html-pdf');
   console.log('');
 });
 

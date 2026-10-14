@@ -380,6 +380,53 @@ function formatFrameBody() {
 })()`;
 }
 
+/**
+ * Lógica executada dentro do iframe do /html-pdf: cola um HTML de pedaço
+ * solto, confere se a prévia recebe o conteúdo e clica em "Gerar PDF" — o
+ * download é interceptado na âncora (mesmo truque do /pdf), porque no Chrome
+ * headless um download real trava o tempo virtual do `--dump-dom`.
+ */
+function htmlpdfFrameBody() {
+  return `(async function () {
+  var w = fr.contentWindow, d = w.document;
+  var out = {};
+  var sleep = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
+
+  var ta = d.getElementById('hp-input');
+  if (!ta) return { semEditor: true };
+
+  /* intercepta a âncora de download antes que o navegador a persiga */
+  d.addEventListener('click', function (ev) {
+    var a = ev.target;
+    if (a && a.tagName === 'A' && a.hasAttribute('download')) {
+      ev.preventDefault();
+      out.baixou = a.getAttribute('download');
+    }
+  }, true);
+
+  out.botaoPdf = alvo(w, 'hp-pdf');
+  out.botaoImprimir = alvo(w, 'hp-print');
+
+  /* pedaço solto colado: a prévia tem de receber o conteúdo na hora */
+  var marcador = 'RELATORIO-' + 'DE-MARCADOR';
+  ta.value = '<h1>' + marcador + '</h1><p>parágrafo de teste</p>';
+  ta.dispatchEvent(new w.Event('input', { bubbles: true }));
+  await sleep(900);
+
+  var frame = d.getElementById('hp-frame');
+  out.previaRecebeu = !!frame && (frame.getAttribute('srcdoc') || '').indexOf(marcador) !== -1;
+  out.badge = d.getElementById('hp-badge').textContent;
+
+  /* o clique em Gerar PDF manda o HTML para o servidor e baixa o resultado */
+  d.getElementById('hp-pdf').click();
+  await sleep(25000);
+
+  var erro = d.getElementById('hp-error');
+  out.erro = erro && !erro.hidden ? erro.textContent : '';
+  return out;
+})()`;
+}
+
 /** Lógica executada dentro do iframe do visualizador. */
 function viewerFrameBody() {
   return `(function () {
@@ -721,6 +768,31 @@ try {
     check('/formatar: virar string desliga a conversão de \\n', fmt.unescapeDesligado === true);
   }
   console.log('');
+
+  /* ---------------------------------------------------------------
+     /html-pdf: a promessa é colar HTML e receber o PDF. A sonda cola
+     um pedaço solto, confere a prévia no iframe e clica em "Gerar
+     PDF" — o download é interceptado na âncora, como no /pdf.
+     --------------------------------------------------------------- */
+  console.log('  -- /html-pdf: conversão no navegador');
+  fs.writeFileSync(CLICK, frameHtml('/html-pdf', htmlpdfFrameBody()), 'utf8');
+  let hp = null;
+  try {
+    hp = frameReport(dumpDom(browser, BASE + '/_click.html', 120000));
+  } catch (err) {
+    check('/html-pdf no navegador', false, err.message);
+  }
+  if (hp) {
+    check('/html-pdf: a prévia recebeu o HTML colado', hp.previaRecebeu === true, JSON.stringify(hp));
+    check('/html-pdf: a prévia se identifica com conteúdo', hp.badge === 'prévia', 'badge=' + hp.badge);
+    check('/html-pdf: o botão Gerar PDF é clicável', hp.botaoPdf && hp.botaoPdf.noAlvo === true, JSON.stringify(hp.botaoPdf));
+    check('/html-pdf: o botão Imprimir é clicável', hp.botaoImprimir && hp.botaoImprimir.noAlvo === true, JSON.stringify(hp.botaoImprimir));
+    check(
+      '/html-pdf: o clique gerou o PDF (ou explicou a falta de Chrome)',
+      (typeof hp.baixou === 'string' && /\.pdf$/.test(hp.baixou)) || !!hp.erro,
+      JSON.stringify(hp)
+    );
+  }
 
   /* ---------------------------------------------------------------
      Salas compartilhadas: /notas e /drive. A semeadura das salas é

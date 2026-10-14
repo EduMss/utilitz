@@ -83,6 +83,50 @@ router.post('/pdf', async (req, res, next) => {
   }
 });
 
+/* ------------------------------------------------------------------ *
+ * HTML -> PDF (página /html-pdf)
+ *
+ * Diferente do PDF de markdown, não há plano B: o PDFKit não lê HTML, então
+ * sem Chrome/Chromium/Edge a resposta é 503 com a explicação — a página
+ * mostra a frase e oferece a impressão pelo próprio navegador.
+ * ------------------------------------------------------------------ */
+router.post('/html-pdf', async (req, res, next) => {
+  try {
+    const body = req.body || {};
+    const html = String(body.html || '');
+    if (!html.trim()) {
+      return res.status(400).json({ error: 'Cole ou envie um HTML para converter em PDF.' });
+    }
+    if (!chrome.resolveChrome()) {
+      return res.status(503).json({
+        error: 'Preciso de um Chrome, Chromium ou Edge instalado para gerar o PDF. ' +
+          'Instale um deles ou aponte o caminho na variável DIR_CHROME.',
+      });
+    }
+
+    const buffer = await chrome.renderHtmlPdf(html, {
+      title: body.title,
+      pageSize: body.pageSize,
+      orientation: body.orientation,
+      margins: body.margins,
+      printBackground: body.printBackground !== false,
+    });
+
+    const filename = slugFilename(body.title || 'pagina', 'pagina');
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Length', buffer.length);
+    res.setHeader('X-Pdf-Engine', 'chrome');
+    res.setHeader(
+      'Content-Disposition',
+      (body.inline ? 'inline' : 'attachment') + '; filename="' + filename + '.pdf"'
+    );
+    res.setHeader('Cache-Control', 'no-store');
+    res.end(buffer);
+  } catch (err) {
+    next(err);
+  }
+});
+
 /** Configurações e presets disponíveis (fonte única de verdade). */
 router.get('/settings', (req, res) => {
   res.json({

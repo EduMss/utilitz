@@ -24,6 +24,10 @@ const FEATURES = [
     text: 'JSON, XML, HTML, Markdown, CSV, texto e código (Python, C#, Java…) saem arrumados, realçados e com número de linha.',
   },
   {
+    title: 'Conversor de HTML para PDF',
+    text: 'Cole uma página inteira ou um pedaço de HTML e baixe o PDF com papel, margens e orientação à sua escolha.',
+  },
+  {
     title: 'Notas compartilhadas',
     text: 'Um bloco de notas efêmero por link: dois (ou vinte) escrevem ao mesmo tempo e a sala some sozinha sem atividade.',
   },
@@ -147,6 +151,7 @@ function home() {
       <a class="btn btn-ghost" href="/pdf">Converter para PDF</a>
       <a class="btn btn-ghost" href="/imagens">Converter imagens</a>
       <a class="btn btn-ghost" href="/formatar">Formatar arquivos</a>
+      <a class="btn btn-ghost" href="/html-pdf">HTML para PDF</a>
       <a class="btn btn-ghost" href="/notas">Notas compartilhadas</a>
       <a class="btn btn-ghost" href="/drive">Drive temporário</a>
     </div>

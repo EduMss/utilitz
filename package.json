@@ -6,11 +6,12 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "test": "node scripts/check-integrity.js && node scripts/test-format.js && node scripts/test-render.js && node scripts/test-matrix.js && node scripts/test-image-codecs.js && node scripts/test-salas.js",
+    "test": "node scripts/check-integrity.js && node scripts/test-format.js && node scripts/test-render.js && node scripts/test-matrix.js && node scripts/test-image-codecs.js && node scripts/test-html-pdf.js && node scripts/test-salas.js",
     "test:format": "node scripts/test-format.js",
     "test:render": "node scripts/test-render.js",
     "test:pdf": "node scripts/test-matrix.js",
     "test:images": "node scripts/test-image-codecs.js",
+    "test:html-pdf": "node scripts/test-html-pdf.js",
     "test:salas": "node scripts/test-salas.js",
     "test:images:browser": "node scripts/probe-images.js",
     "test:api": "node scripts/test-api.js",

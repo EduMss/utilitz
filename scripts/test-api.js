@@ -60,10 +60,19 @@ const MD = '# Olá\n\nUm **texto** com `código`.\n\n## Seção\n\n- a\n- b\n';
     assert.ok(t.includes('src="/vendor/hljs.js'), 'formatar sem o bundle do highlight.js');
   });
 
+  await check('página de HTML para PDF responde 200', async () => {
+    const r = await fetch(BASE + '/html-pdf');
+    assert.strictEqual(r.status, 200);
+    const t = await r.text();
+    assert.ok(/HTML/.test(t), 'título ausente');
+    assert.ok(t.includes('id="hp-input"'), 'sem editor de HTML');
+    assert.ok(t.includes('id="hp-frame"'), 'sem prévia em iframe');
+  });
+
   // Regressão: as ferramentas usam classes que vivem no app.css. Se ele deixar
   // de ser carregado, as páginas funcionam mas aparecem sem estilo nenhum.
   await check('todas as páginas carregam os três CSS', async () => {
-    for (const url of ['/', '/visualizar', '/pdf', '/formatar']) {
+    for (const url of ['/', '/visualizar', '/pdf', '/formatar', '/html-pdf']) {
       const html = await (await fetch(BASE + url)).text();
       for (const css of ['/css/base.css', '/css/markdown.css', '/css/app.css']) {
         // o href pode trazer ?v=<mtime>, por isso o prefixo
@@ -77,6 +86,7 @@ const MD = '# Olá\n\nUm **texto** com `código`.\n\n## Seção\n\n- a\n- b\n';
       ['/visualizar', '/js/viewer.js'],
       ['/pdf', '/js/pdf.js'],
       ['/formatar', '/js/format.js'],
+      ['/html-pdf', '/js/html-pdf.js'],
     ]) {
       const html = await (await fetch(BASE + url)).text();
       const common = html.indexOf('src="/js/common.js');
@@ -108,7 +118,7 @@ const MD = '# Olá\n\nUm **texto** com `código`.\n\n## Seção\n\n- a\n- b\n';
   });
 
   await check('as páginas não são cacheadas', async () => {
-    for (const url of ['/', '/visualizar', '/pdf', '/formatar']) {
+    for (const url of ['/', '/visualizar', '/pdf', '/formatar', '/html-pdf']) {
       const cache = (await fetch(BASE + url)).headers.get('cache-control') || '';
       assert.ok(/no-cache|no-store/.test(cache), url + ' com cache "' + cache + '"');
     }
@@ -127,6 +137,11 @@ const MD = '# Olá\n\nUm **texto** com `código`.\n\n## Seção\n\n- a\n- b\n';
     for (const id of ['fmt-type', 'fmt-input', 'fmt-preview', 'grp-text', 'grp-json', 'grp-csv',
       'opt-unescape', 'opt-one-line', 'opt-remove-escapes', 'fmt-copy', 'fmt-download', 'file-input', 'toast']) {
       assert.ok(fmt.includes('id="' + id + '"'), 'formatar sem #' + id);
+    }
+    const hp = await (await fetch(BASE + '/html-pdf')).text();
+    for (const id of ['hp-input', 'hp-frame', 'hp-size', 'hp-orientation', 'hp-margins',
+      'hp-background', 'hp-title', 'hp-pdf', 'hp-print', 'file-input', 'toast']) {
+      assert.ok(hp.includes('id="' + id + '"'), 'html-pdf sem #' + id);
     }
   });
 
@@ -218,6 +233,34 @@ const MD = '# Olá\n\nUm **texto** com `código`.\n\n## Seção\n\n- a\n- b\n';
   await check('POST /api/pdf inline abre no navegador', async () => {
     const r = await post('/api/pdf', { markdown: MD, inline: true });
     assert.ok(/^inline;/.test(r.headers.get('content-disposition')), r.headers.get('content-disposition'));
+  });
+
+  await check('POST /api/html-pdf devolve PDF binário', async () => {
+    const r = await post('/api/html-pdf', {
+      html: '<h1>Relatório</h1><p style="background:#eef">texto com fundo</p>',
+      title: 'Relatório de teste',
+      pageSize: 'A5',
+      margins: 'estreitas',
+    });
+    if (r.status === 503) {
+      // sem Chrome/Edge instalado a página oferece a impressão pelo navegador
+      console.log('         (sem Chrome no servidor: pulado)');
+      return;
+    }
+    assert.strictEqual(r.status, 200);
+    assert.strictEqual(r.headers.get('content-type'), 'application/pdf');
+    assert.ok(/attachment; filename="relatorio-de-teste\.pdf"/.test(r.headers.get('content-disposition')),
+      r.headers.get('content-disposition'));
+    const buf = Buffer.from(await r.arrayBuffer());
+    assert.strictEqual(buf.subarray(0, 4).toString(), '%PDF');
+    assert.ok(buf.length > 800, 'pdf pequeno demais: ' + buf.length);
+  });
+
+  await check('POST /api/html-pdf recusa HTML vazio', async () => {
+    const r = await post('/api/html-pdf', { html: '   ' });
+    assert.strictEqual(r.status, 400);
+    const j = await r.json();
+    assert.ok(typeof j.error === 'string' && j.error.length > 10, 'sem mensagem em português');
   });
 
   console.log('\n== fontes externas ==');
