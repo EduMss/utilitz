@@ -46,7 +46,11 @@
       } catch (err) {
         /* resposta sem JSON */
       }
-      throw new Error(message);
+      const erro = new Error(message);
+      /* Quem chama precisa distinguir 401 (senha) de 403 (senha errada) e
+         404 (sala expirada) — sem o status vira um "deu ruim" só. */
+      erro.status = response.status;
+      throw erro;
     }
     return response;
   }

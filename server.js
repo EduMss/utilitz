@@ -10,6 +10,7 @@ const express = require('express');
 
 const pagesRouter = require('./src/routes/pages');
 const apiRouter = require('./src/routes/api');
+const salasRouter = require('./src/routes/salas');
 const fontStore = require('./src/lib/fonts');
 const { store } = require('./src/lib/library');
 
@@ -37,6 +38,7 @@ app.use(
   })
 );
 
+app.use('/api', salasRouter);
 app.use('/api', apiRouter);
 
 /* Arquivos das fontes externas: a prévia no navegador carrega daqui. Os nomes

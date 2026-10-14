@@ -7,6 +7,9 @@ const { viewer } = require('../views/viewer');
 const { pdf } = require('../views/pdf');
 const { images } = require('../views/images');
 const { format } = require('../views/format');
+const { notas } = require('../views/notas');
+const { drive } = require('../views/drive');
+const { salas } = require('../lib/salas');
 
 const router = express.Router();
 
@@ -38,6 +41,24 @@ router.get('/imagens', (req, res) => {
 
 router.get('/formatar', (req, res) => {
   page(res, format());
+});
+
+/* Salas compartilhadas: a mesma view serve para a página de criar e para a
+   sala aberta (`/notas/abc123`) — o cliente JS lê a URL e mostra o painel. */
+router.get('/notas', (req, res) => {
+  page(res, notas({ ttlMs: salas.cfg.ttlNotaMs }));
+});
+
+router.get('/notas/:id', (req, res) => {
+  page(res, notas({ ttlMs: salas.cfg.ttlNotaMs }));
+});
+
+router.get('/drive', (req, res) => {
+  page(res, drive({ tamMaxBytes: salas.cfg.tamMaxBytes, ttlMs: salas.cfg.ttlArquivoMs }));
+});
+
+router.get('/drive/:id', (req, res) => {
+  page(res, drive({ tamMaxBytes: salas.cfg.tamMaxBytes, ttlMs: salas.cfg.ttlArquivoMs }));
 });
 
 module.exports = router;

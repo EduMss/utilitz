@@ -61,6 +61,8 @@ docker compose down           # derruba (preserva o volume)
 | `/visualizar` | Visualizador em tela cheia. Editor e sumário guardam o texto em uma gaveta para deixar a leitura limpia. |
 | `/pdf` | Conversor com tela dividida e painel de configurações. |
 | `/formatar` | Formatação de arquivos: JSON, XML, HTML, Markdown, CSV, texto e código (Python, C#, Java…). Prévia com números de linha, realce de sintaxe e botões de copiar/baixar — tudo no navegador, nada vai para o servidor. |
+| `/notas` | Bloco de notas compartilhado: uma sala efêmera por link, edição em tempo real e senha opcional. |
+| `/drive` | Drive temporário: arquivos por link público ou privado, com limite por upload e limpeza automática depois do prazo. |
 
 As duas ferramentas são de tela cheia e por isso não repetem a barra de
 navegação do site. Para não ficarem sem identidade, cada uma mostra a marca
@@ -70,6 +72,49 @@ barra do editor, e as duas levam de volta para `/`.
 O texto escrito na página inicial segue para a ferramenta escolhida. A passagem
 é feita por uma chave de uso único (`md:handoff`), separada do rascunho de cada
 página, para o título não se misturar ao texto salvo.
+
+## Salas compartilhadas
+
+`/notas` e `/drive` são salas por link: quem tem a URL entra, ninguém precisa
+de cadastro. As duas podem ser públicas ou privadas com senha — no criar, o
+campo de senha já deixa a sala protegida, e quem abrir sem ela vê o pedido de
+senha (nunca o conteúdo). A senha só trafega como hash SHA-256 misturado com o
+id da sala, comparada em tempo constante; no navegador ela fica no
+`sessionStorage` da aba, então sobrevive ao F5 e morre junto com a aba.
+
+**Notas.** Um texto só para toda sala: quem digita vê o cursor e o texto
+entrarem a cada pausa, e o que os outros escrevem chega pelo canal de
+atualizações (SSE). Se você estiver no meio de uma frase quando o texto
+remoto chegar, ele fica em espera e entra quando você soltar o foco — com um
+aviso na tela. Dá para forçar o salvamento no desligar da aba (best-effort,
+corpo pequeno) e abrir uma prévia opcional de markdown. O relógio conta da
+**última edição** (ou da criação): entrar na sala e só olhar não reinicia
+nada — quem está assistindo vê o prazo descer em tempo real em todas as abas,
+e quando ele acaba a sala some e as abas abertas trocam para o painel de sala
+expirada. Digitar de novo é que recomeça a contagem.
+
+**Drive.** O envio vai no corpo cru da requisição (`octet-stream`), sem
+multipart: a barra de progresso é medida de verdade, byte a byte. O limite por
+arquivo (`DRIVE_MAX_MB`, padrão 25 MB) é lido do servidor e mostrado na tela;
+acima dele a resposta é `413` antes de gravar qualquer coisa. O relógio de
+vida de cada arquivo só começa quando o **upload termina**, e um download em
+andamento segura a exclusão até a pessoa terminar de baixar (com uma trava de
+segurança de mais um prazo cheio para downloads presos). A sala de drive em
+si some depois do mesmo prazo sem uploads — ver a lista não renova. Os nomes
+de arquivo nunca viram caminho: o servidor grava com um id aleatório e devolve
+`Content-Disposition` com o nome real em UTF-8.
+
+As duas páginas conversam com o servidor por **SSE** (`text/event-stream`),
+sem dependência nova: o navegador abre o `EventSource` e o servidor empurra
+`estado`, `relogio`, `texto`/`arquivo-novo`, `online` e `encerrada`. **O
+relógio é do backend**: a cada volta do ping (25 s) o servidor reenvia o
+prazo atual com o próprio `agora` — sem renová-lo, a renovação é só edição —,
+então todas as abas contam a partir do mesmo número, mesmo com máquinas de
+relógios descasados, a régua é a diferença `expiraEm - agora`. Quando a sala expira, o servidor avisa `encerrada` e a
+página troca para o painel de "sala expirada"; se a conexão cair no meio e a
+sala já tiver morrido, a reconexão leva `404` e o cliente re-pergunta ao
+servidor — que também troca o painel, em vez de deixar a aba órfã contando
+para um prazo morto.
 
 ## Inserir imagens
 
@@ -101,6 +146,18 @@ inserção ficam em um módulo compartilhado, `public/js/images.js`.
 | `GET` | `/api/library/:id` | Devolve um documento completo. |
 | `POST` | `/api/library` | Salva um documento: `{ title, content, kind, settings }`. |
 | `DELETE` | `/api/library/:id` | Remove um documento. |
+| `POST` | `/api/notas` | Cria uma sala de notas: `{ senha }` opcional → `{ id, privada }`. |
+| `GET` | `/api/notas/:id` | Estado da sala: `{ id, texto, versao, online, expiraEm, maxTexto }`. Salas privadas respondem `401` sem senha (`precisaSenha`) e `403` com senha errada. |
+| `POST` | `/api/notas/:id` | Salva o texto: `{ texto }` → `{ versao, expiraEm }`. Acima de 500 mil caracteres responde `413`. |
+| `GET` | `/api/notas/:id/eventos` | Canal SSE da sala: eventos `estado`, `relogio` (o prazo atualizado, a cada ping), `texto`, `online` e `encerrada`. |
+| `POST` | `/api/drive` | Cria uma sala de drive: `{ senha }` opcional → `{ id, privada, tamMaxBytes }`. |
+| `GET` | `/api/drive/:id` | Estado da sala: `{ arquivos, tamMaxBytes, online, expiraEm }`. Mesmo tratamento de senha do `/api/notas/:id`. |
+| `POST` | `/api/drive/:id/arquivos?nome=` | Envia o arquivo no corpo cru (`application/octet-stream`) → `201` com os metadados. Recusa com `413` acima do limite. |
+| `GET` | `/api/drive/:id/arquivos/:fid` | Baixa o arquivo (e renova a janela de exclusão enquanto baixa). |
+| `GET` | `/api/drive/:id/eventos` | Canal SSE da sala: `estado`, `relogio`, `arquivo-novo`, `arquivo-expirou`, `online` e `encerrada`. |
+
+Salas privadas: envie a senha no cabeçalho `x-sala-senha` (ou na query
+`?senha=` nas rotas que não têm corpo — eventos e downloads).
 
 ## Configurações do PDF
 
@@ -187,11 +244,12 @@ O Markdown aceita HTML bruto, então a saída passa por um higienizador que remo
 ## Testes
 
 ```bash
-npm test              # integridade + formatação + renderização + matriz completa de PDF
+npm test              # integridade + formatação + renderização + matriz de PDF + salas
 npm run check         # encoding, chaves CSS e assets referenciados
 npm run test:format   # núcleo de formatação (JSON, XML/HTML, Markdown, CSV, texto, código)
 npm run test:render   # renderização e higienização
 npm run test:pdf      # matriz de presets, temas, numeração e casos-limite
+npm run test:salas    # núcleo das salas: expiração, senha, limites, upload e download
 npm run test:api      # ponta a ponta (exige o servidor rodando)
 npm run test:browser  # render real em Chrome/Edge headless (exige o servidor)
 npm run smoke         # gera um PDF de exemplo com todos os recursos
@@ -216,6 +274,17 @@ mede a área do editor, da prévia e dos botões, checando que o clique chega ao
 listener faltando, ou presente e rolado para fora da tela, e nenhum dos dois
 aparece no `curl`. Se faltar o Chrome ou o Edge, ele é pulado em vez de
 falhar.
+
+O `test:salas` é unitário e não precisa de servidor: cobre o núcleo de
+`src/lib/salas.js` — expiração por inatividade e renovação do relógio, hash
+de senha, teto de texto (`413`) e de salas (`429`), upload interrompido sem
+resíduo no disco e download segurando a exclusão do arquivo. A sonda estende
+isso no navegador: `/notas` e `/drive` são conferidas em tempo real (o SSE
+aberto vive esperando dentro do `--dump-dom` de orçamento virtual, então essas
+salas usam o helper CDP com predicado próprio), uma sala privada para no
+pedido de senha sem entregar o editor, a sala semeada mostra o texto e o
+arquivo enviado, e um quadro com duas cópias da mesma sala prova que o que um
+digita chega no outro.
 
 A paginação do Paged.js faz trabalho real de layout, então a sonda repete o
 carregamento com orçamentos de tempo virtual crescentes até a prévia ficar

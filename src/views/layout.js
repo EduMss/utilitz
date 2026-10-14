@@ -16,7 +16,16 @@ const NAV = [
   { href: '/pdf', label: 'PDF', match: '/pdf' },
   { href: '/imagens', label: 'Imagens', match: '/imagens' },
   { href: '/formatar', label: 'Formatar', match: '/formatar' },
+  { href: '/notas', label: 'Notas', match: '/notas' },
+  { href: '/drive', label: 'Drive', match: '/drive' },
 ];
+
+/** "10 min", "45 s"… para os prazos escritos nas páginas. */
+function tempoLegivel(ms) {
+  if (ms < 60000) return Math.round(ms / 1000) + ' s';
+  const min = ms / 60000;
+  return (Number.isInteger(min) ? min : Math.round(min * 10) / 10) + ' min';
+}
 
 /**
  * Carimbo de versão dos assets estáticos.
@@ -109,4 +118,4 @@ ${scripts.map((src) => `<script src="${versioned(src)}"></script>`).join('\n')}
 </html>`;
 }
 
-module.exports = { layout, escapeHtml, versioned };
+module.exports = { layout, escapeHtml, versioned, tempoLegivel };

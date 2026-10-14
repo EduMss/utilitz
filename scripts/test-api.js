@@ -397,6 +397,211 @@ const MD = '# Olá\n\nUm **texto** com `código`.\n\n## Seção\n\n- a\n- b\n';
     assert.strictEqual(r.status, 404);
   });
 
+  /* ---------------------------------------------------------- *
+     Salas compartilhadas: notas + drive
+     ---------------------------------------------------------- */
+  console.log('\n== salas: notas ==');
+
+  const dorme = (ms) => new Promise((res) => setTimeout(res, ms));
+  let notaId = '';
+
+  await check('/notas carrega com os elementos do editor', async () => {
+    const r = await fetch(BASE + '/notas');
+    assert.strictEqual(r.status, 200);
+    const t = await r.text();
+    for (const trecho of ['nt-criar-btn', 'nt-entrada-senha', 'id="nt-texto"', 'id="nt-sala"', '/js/salas.js', '/js/notas.js']) {
+      assert.ok(t.includes(trecho), 'sem "' + trecho + '"');
+    }
+    assert.ok(!t.includes('undefined'), 'alguém interpolou indefinido no HTML');
+  });
+
+  await check('criar sala de notas e salvar texto', async () => {
+    const criada = await (await post('/api/notas', {})).json();
+    assert.ok(criada.id, 'sem id');
+    assert.strictEqual(criada.privada, false);
+
+    const salvo = await (
+      await post('/api/notas/' + criada.id, { texto: 'primeira anotação' })
+    ).json();
+    assert.strictEqual(salvo.versao, 1);
+
+    const estado = await (await fetch(BASE + '/api/notas/' + criada.id)).json();
+    assert.strictEqual(estado.texto, 'primeira anotação');
+    assert.strictEqual(typeof estado.online, 'number');
+    notaId = criada.id;
+  });
+
+  await check('nota privada: 401 sem senha, 403 errada, 200 certa', async () => {
+    const criada = await (await post('/api/notas', { senha: 'segredo' })).json();
+    assert.strictEqual(criada.privada, true);
+
+    const sem = await fetch(BASE + '/api/notas/' + criada.id);
+    assert.strictEqual(sem.status, 401);
+    const corpoSem = await sem.json();
+    assert.strictEqual(corpoSem.precisaSenha, true);
+
+    const errada = await fetch(BASE + '/api/notas/' + criada.id, { headers: { 'x-sala-senha': 'x' } });
+    assert.strictEqual(errada.status, 403);
+
+    const certa = await fetch(BASE + '/api/notas/' + criada.id, { headers: { 'x-sala-senha': 'segredo' } });
+    assert.strictEqual(certa.status, 200);
+  });
+
+  await check('sala de notas inexistente dá 404', async () => {
+    const r = await fetch(BASE + '/api/notas/naoexiste99');
+    assert.strictEqual(r.status, 404);
+  });
+
+  await check('nota acima do limite de caracteres dá 413', async () => {
+    const estado = await (await fetch(BASE + '/api/notas/' + notaId)).json();
+    const r = await post('/api/notas/' + notaId, { texto: 'x'.repeat(estado.maxTexto + 1) });
+    assert.strictEqual(r.status, 413);
+  });
+
+  await check('o canal de eventos entrega o estado na primeira mensagem', async () => {
+    const ctrl = new AbortController();
+    const r = await fetch(BASE + '/api/notas/' + notaId + '/eventos', { signal: ctrl.signal });
+    assert.strictEqual(r.status, 200);
+    assert.ok((r.headers.get('content-type') || '').includes('text/event-stream'), 'content-type errado');
+
+    const leitor = r.body.getReader();
+    const primeira = await Promise.race([leitor.read(), dorme(2500).then(() => null)]);
+    ctrl.abort();
+    assert.ok(primeira && !primeira.done, 'sem primeira mensagem');
+    const texto = Buffer.from(primeira.value).toString('utf8');
+    assert.ok(texto.includes('event: '), 'mensagem sem evento: ' + JSON.stringify(texto.slice(0, 80)));
+    assert.ok(texto.includes('"versao"'), 'estado sem versão');
+  });
+
+  await check('o estado traz o relógio do servidor junto do prazo', async () => {
+    const estado = await (await fetch(BASE + '/api/notas/' + notaId)).json();
+    assert.ok(Number.isFinite(estado.agora), 'sem relógio no estado');
+    assert.ok(estado.expiraEm > estado.agora, 'prazo antes do agora');
+  });
+
+  await check('entrar na sala não renova o prazo (só edição reinicia)', async () => {
+    const criada = await (await post('/api/notas', {})).json();
+    const antes = await (await fetch(BASE + '/api/notas/' + criada.id)).json();
+
+    /* Abre o canal (entrar na sala) e fecha na hora. */
+    const ctrl = new AbortController();
+    await fetch(BASE + '/api/notas/' + criada.id + '/eventos', { signal: ctrl.signal });
+    ctrl.abort();
+
+    const depois = await (await fetch(BASE + '/api/notas/' + criada.id)).json();
+    assert.strictEqual(depois.expiraEm, antes.expiraEm, 'o prazo andou sem edição');
+
+    /* Editar, sim, reinicia a contagem. */
+    await post('/api/notas/' + criada.id, { texto: 'edição manda no relógio' });
+    const editado = await (await fetch(BASE + '/api/notas/' + criada.id)).json();
+    assert.ok(editado.expiraEm > depois.expiraEm, 'edição não renovou o prazo');
+  });
+
+  await check('o ping do canal reenvia o prazo do backend (evento relogio)', async () => {
+    /* O relógio é do servidor: a cada volta do ping (25 s) ele reenvia o
+       prazo atual para todas as abas — e o teste confere que o ping
+       apenas REPETE o prazo, sem renová-lo: a renovação é só edição. */
+    const antes = await (await fetch(BASE + '/api/notas/' + notaId)).json();
+    const ctrl = new AbortController();
+    const r = await fetch(BASE + '/api/notas/' + notaId + '/eventos', { signal: ctrl.signal });
+    const leitor = r.body.getReader();
+    const dec = new TextDecoder();
+    let buf = '';
+    let achou = null;
+    const t0 = Date.now();
+    while (Date.now() - t0 < 32000) {
+      const { value, done } = await leitor.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      const inicio = buf.indexOf('event: relogio');
+      if (inicio < 0) continue;
+      const fim = buf.indexOf('\n\n', inicio);
+      if (fim < 0) continue;
+      const bloco = buf.slice(inicio, fim);
+      achou = JSON.parse(bloco.slice(bloco.indexOf('data: ') + 6));
+      break;
+    }
+    ctrl.abort();
+    assert.ok(achou, 'sem evento relogio em 32 s');
+    assert.ok(Number.isFinite(achou.expiraEm), 'relogio sem prazo');
+    assert.ok(Number.isFinite(achou.agora), 'relogio sem relógio');
+    assert.ok(achou.expiraEm > achou.agora, 'prazo já vencido no relogio');
+    assert.ok(typeof achou.online === 'number', 'relogio sem contador de gente');
+    assert.strictEqual(achou.expiraEm, antes.expiraEm, 'o ping renovou o prazo sem edição');
+  });
+
+  console.log('\n== salas: drive ==');
+
+  let driveId = '';
+  let driveSenha = '';
+
+  await check('/drive carrega com o dropzone', async () => {
+    const r = await fetch(BASE + '/drive');
+    assert.strictEqual(r.status, 200);
+    const t = await r.text();
+    for (const trecho of ['dv-criar-btn', 'id="dv-drop"', 'id="dv-input"', 'id="dv-lista"', '/js/drive.js']) {
+      assert.ok(t.includes(trecho), 'sem "' + trecho + '"');
+    }
+  });
+
+  await check('criar sala de drive expõe o limite por arquivo', async () => {
+    driveSenha = 'xyz';
+    const criada = await (await post('/api/drive', { senha: driveSenha })).json();
+    assert.ok(criada.id, 'sem id');
+    assert.strictEqual(criada.privada, true);
+    assert.ok(criada.tamMaxBytes > 0, 'sem limite exposto');
+    driveId = criada.id;
+  });
+
+  await check('upload em fluxo, lista e download byte a byte (com acento)', async () => {
+    const conteudo = 'arquivo de teste com acentuação: ção';
+    const nome = 'relatório nº 1.txt';
+    const up = await fetch(BASE + '/api/drive/' + driveId + '/arquivos?nome=' + encodeURIComponent(nome), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/octet-stream', 'x-sala-senha': driveSenha },
+      body: conteudo,
+    });
+    assert.strictEqual(up.status, 201);
+    const { arquivo } = await up.json();
+    assert.strictEqual(arquivo.nome, nome);
+    assert.strictEqual(arquivo.tamanho, Buffer.byteLength(conteudo));
+
+    const estado = await (await fetch(BASE + '/api/drive/' + driveId, { headers: { 'x-sala-senha': driveSenha } })).json();
+    const naLista = estado.arquivos.find((a) => a.id === arquivo.id);
+    assert.ok(naLista, 'arquivo fora da lista');
+
+    const dl = await fetch(BASE + '/api/drive/' + driveId + '/arquivos/' + arquivo.id + '?senha=' + driveSenha);
+    assert.strictEqual(dl.status, 200);
+    const baixado = await dl.text();
+    assert.strictEqual(baixado, conteudo, 'bytes diferentes no download');
+    const disp = dl.headers.get('content-disposition') || '';
+    assert.ok(disp.includes("filename*=UTF-8''"), 'sem filename UTF-8: ' + disp);
+  });
+
+  await check('drive privado: upload sem senha dá 401', async () => {
+    const r = await fetch(BASE + '/api/drive/' + driveId + '/arquivos?nome=x.txt', { method: 'POST', body: 'oi' });
+    assert.strictEqual(r.status, 401);
+  });
+
+  await check('download de arquivo morto dá 404', async () => {
+    const r = await fetch(BASE + '/api/drive/' + driveId + '/arquivos/naoexiste99?senha=' + driveSenha);
+    assert.strictEqual(r.status, 404);
+  });
+
+  await check('upload acima do limite anunciado dá 413', async () => {
+    const estado = await (await fetch(BASE + '/api/drive/' + driveId, { headers: { 'x-sala-senha': driveSenha } })).json();
+    if (estado.tamMaxBytes > 8 * 1024 * 1024) {
+      console.log('         (limite de ' + estado.tamMaxBytes + ' bytes: teste de corpo pulado)');
+      return;
+    }
+    const r = await fetch(BASE + '/api/drive/' + driveId + '/arquivos?nome=g.txt', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/octet-stream', 'x-sala-senha': driveSenha },
+      body: 'x'.repeat(estado.tamMaxBytes + 1024),
+    });
+    assert.strictEqual(r.status, 413);
+  });
+
   console.log('\n' + pass + ' passaram, ' + failures.length + ' falharam\n');
   process.exit(failures.length ? 1 : 0);
 })();

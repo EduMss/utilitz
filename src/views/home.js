@@ -24,6 +24,14 @@ const FEATURES = [
     text: 'JSON, XML, HTML, Markdown, CSV, texto e código (Python, C#, Java…) saem arrumados, realçados e com número de linha.',
   },
   {
+    title: 'Notas compartilhadas',
+    text: 'Um bloco de notas efêmero por link: dois (ou vinte) escrevem ao mesmo tempo e a sala some sozinha sem atividade.',
+  },
+  {
+    title: 'Drive temporário',
+    text: 'Envie arquivos por link público ou privado, com limite configurável — e deixe o servidor se limpar depois do prazo.',
+  },
+  {
     title: 'Tipografia a seu gosto',
     text: 'Fonte, corpo, entrelinha, margens, tamanho do papel, tema, cabeçalho, rodapé, sumário e muito mais.',
   },
@@ -139,6 +147,8 @@ function home() {
       <a class="btn btn-ghost" href="/pdf">Converter para PDF</a>
       <a class="btn btn-ghost" href="/imagens">Converter imagens</a>
       <a class="btn btn-ghost" href="/formatar">Formatar arquivos</a>
+      <a class="btn btn-ghost" href="/notas">Notas compartilhadas</a>
+      <a class="btn btn-ghost" href="/drive">Drive temporário</a>
     </div>
   </section>
 

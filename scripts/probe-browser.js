@@ -15,6 +15,7 @@ const { previewReady } = require('./probe-cdp-dump');
 const ROOT = path.resolve(__dirname, '..');
 const PROBE = path.join(ROOT, 'public', '_probe.html');
 const CLICK = path.join(ROOT, 'public', '_click.html');
+const DUPLO = path.join(ROOT, 'public', '_duplo.html');
 
 const BROWSERS = [
   'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
@@ -428,14 +429,23 @@ function viewerFrameBody() {
  * `probe-cdp-dump.js`). Sem `ready` basta o --dump-dom com tempo virtual:
  * as páginas sem paginação assentam dentro do orçamento.
  */
-function dumpDomReady(browser, url, ready) {
-  if (!ready) return dumpDom(browser, url, 30000);
+/**
+ * Espera a página ficar pronta. Sem predicado, usa o dump de orçamento
+ * virtual (rápido, serve para páginas quietas); com predicado — nome do
+ * registro do helper ou função — roda o Chrome em tempo real via CDP até o
+ * predicado passar, que é o caso de páginas com SSE aberto.
+ */
+function dumpDomReady(browser, url, pronto, extrair) {
+  if (!pronto) return dumpDom(browser, url, 30000);
   const espera = Number(process.env.PROBE_WAIT) || 60000;
-  const r = spawnSync(
-    process.execPath,
-    [path.join(__dirname, 'probe-cdp-dump.js'), url, String(espera), browser],
-    { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, timeout: espera + 60000 }
-  );
+  const args = [path.join(__dirname, 'probe-cdp-dump.js'), url, String(espera), browser];
+  if (typeof pronto === 'string') args.push(pronto);
+  if (extrair) args.push(extrair);
+  const r = spawnSync(process.execPath, args, {
+    encoding: 'utf8',
+    maxBuffer: 64 * 1024 * 1024,
+    timeout: espera + 60000,
+  });
   if (r.status !== 0) {
     throw new Error((r.stderr || '').trim() || 'espera do render terminou com status ' + r.status);
   }
@@ -711,9 +721,173 @@ try {
     check('/formatar: virar string desliga a conversão de \\n', fmt.unescapeDesligado === true);
   }
   console.log('');
+
+  /* ---------------------------------------------------------------
+     Salas compartilhadas: /notas e /drive. A semeadura das salas é
+     assíncrona (só existe fetch no evento do Node) e o resto da sonda é
+     síncrono, então ela roda num filho e devolve os ids. As páginas de
+     sala são conferidas em tempo real pelo helper CDP: com o SSE aberto,
+     o --dump-dom de orçamento virtual nunca sai do "conectando".
+     --------------------------------------------------------------- */
+  function apiDeFilho(codigo) {
+    const r = spawnSync(process.execPath, ['-e', codigo], { encoding: 'utf8', timeout: 30000 });
+    if (r.status !== 0) {
+      throw new Error((r.stderr || '').trim().slice(0, 300) || 'semeio das salas falhou');
+    }
+    return r.stdout;
+  }
+
+  /** O que o helper CDP extraiu via expressão (vira comentário no dump). */
+  function extraDe(dom) {
+    const m = /<!--extra:([\s\S]*?)-->/.exec(dom);
+    return m ? m[1] : '';
+  }
+
+  /** Duas cópias da mesma sala lado a lado: uma digita, a outra recebe. */
+  function duploHtml(rota) {
+    return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>quadro duplo</title></head>
+<body>
+<pre id="out"></pre>
+<iframe id="a" style="width:690px;height:620px;border:0"></iframe>
+<iframe id="b" style="width:690px;height:620px;border:0"></iframe>
+<script>
+var A = document.getElementById('a'), B = document.getElementById('b');
+function report(r) { document.getElementById('out').textContent = JSON.stringify(r); }
+var carregados = 0;
+function aoCarregar() {
+  if (++carregados < 2) return;
+  setTimeout(testar, 2500); // deixa o estado chegar e o canal abrir nos dois
+}
+function testar() {
+  try {
+    var ta = A.contentDocument.getElementById('nt-texto');
+    if (!ta) return report({ erro: 'sem editor no quadro A' });
+    var marcador = 'pingue da sonda ' + Date.now();
+    ta.value = marcador;
+    ta.dispatchEvent(new A.contentWindow.Event('input', { bubbles: true }));
+    setTimeout(function () {
+      var tb = B.contentDocument.getElementById('nt-texto');
+      var oa = A.contentDocument.getElementById('nt-online');
+      var ob = B.contentDocument.getElementById('nt-online');
+      report({
+        marcador: marcador,
+        chegou: !!tb && tb.value === marcador,
+        textoB: tb ? String(tb.value).slice(0, 60) : null,
+        onlineA: oa ? oa.textContent : null,
+        onlineB: ob ? ob.textContent : null,
+      });
+    }, 2500);
+  } catch (e) { report({ erro: String(e) }); }
+}
+A.addEventListener('load', aoCarregar);
+B.addEventListener('load', aoCarregar);
+A.src = ${JSON.stringify(rota)};
+B.src = ${JSON.stringify(rota)};
+</script></body></html>`;
+  }
+
+  console.log('  -- salas: páginas de criação');
+  for (const alvo of ['/notas', '/drive']) {
+    try {
+      const dom = dumpDom(browser, BASE + alvo);
+      check(
+        alvo + ' carrega com o painel de criar',
+        dom.includes(alvo === '/notas' ? 'nt-criar-btn' : 'dv-criar-btn')
+      );
+      check(alvo + ' traz os scripts das salas', dom.includes('/js/salas.js'));
+      check(alvo + ' não mostra "[object Object]"', !/\[object Object\]/.test(dom));
+    } catch (err) {
+      check(alvo + ' carrega', false, err.message);
+    }
+  }
+
+  let semeada = null;
+  try {
+    semeada = JSON.parse(
+      apiDeFilho(
+      'const base = ' + JSON.stringify(BASE) + ';' +
+        "const post = (p, b) => fetch(base + p, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) });" +
+        '(async () => {' +
+        "  const nota = await (await post('/api/notas', {})).json();" +
+        "  await post('/api/notas/' + nota.id, { texto: 'recado da sonda' });" +
+        "  const drive = await (await post('/api/drive', {})).json();" +
+        "  const nome = 'relatório da sonda.txt';" +
+        "  const up = await fetch(base + '/api/drive/' + drive.id + '/arquivos?nome=' + encodeURIComponent(nome), { method: 'POST', body: 'conteudo da sonda' });" +
+        "  if (up.status !== 201) throw new Error('upload recusado: ' + up.status);" +
+        '  return { nota: nota.id, drive: drive.id, nome: nome };' +
+        '})().then(function (r) { console.log(JSON.stringify(r)); }, function (e) { console.error(String(e)); process.exit(1); });'
+      )
+    );
+  } catch (err) {
+    check('semeio das salas pela API', false, err.message);
+  }
+
+  if (semeada) {
+    console.log('  -- salas: sala de notas em tempo real');
+    let salaDom = null;
+    try {
+      salaDom = dumpDomReady(
+        browser,
+        BASE + '/notas/' + semeada.nota,
+        'conectado',
+        'document.getElementById("nt-texto").value.slice(0, 80)'
+      );
+    } catch (err) {
+      check('/notas/<sala> abre no navegador', false, err.message);
+    }
+    if (salaDom) {
+      check('/notas/<sala> conecta no canal de atualizações', /id="nt-status"[^>]*>conectado</.test(salaDom));
+      check('/notas/<sala> mostra o texto da sala', extraDe(salaDom).includes('recado da sonda'), extraDe(salaDom));
+      check('/notas/<sala> não mostra "[object Object]"', !/\[object Object\]/.test(salaDom));
+    }
+
+    console.log('  -- salas: porta de senha');
+    try {
+      const privada = apiDeFilho(
+        'fetch(' + JSON.stringify(BASE + '/api/notas') +
+          ", { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ senha: 'x' }) })" +
+          '.then(function (r) { return r.json(); }).then(function (j) { console.log(j.id); })'
+      ).trim();
+      const dom = dumpDomReady(browser, BASE + '/notas/' + privada, 'pedindoSenha');
+      check('/notas privada para no pedido de senha', /<section[^>]*id="nt-senha"/.test(dom));
+      check('/notas privada não entrega o editor', !/<section class="sala-mesa" id="nt-sala">/.test(dom));
+    } catch (err) {
+      check('/notas privada pede a senha', false, err.message);
+    }
+
+    console.log('  -- salas: drive em tempo real');
+    try {
+      const dom = dumpDomReady(browser, BASE + '/drive/' + semeada.drive, 'conectado');
+      check('/drive/<sala> conecta no canal de atualizações', /id="dv-status"[^>]*>conectado</.test(dom));
+      check('/drive/<sala> lista o arquivo enviado', dom.includes(semeada.nome));
+      check('/drive/<sala> traz o link de download', /\/arquivos\//.test(dom));
+    } catch (err) {
+      check('/drive/<sala> abre no navegador', false, err.message);
+    }
+
+    console.log('  -- salas: dois quadros escrevendo juntos');
+    fs.writeFileSync(DUPLO, duploHtml('/notas/' + semeada.nota), 'utf8');
+    let duplo = null;
+    try {
+      duplo = frameReport(dumpDomReady(browser, BASE + '/_duplo.html', 'relatorio'));
+    } catch (err) {
+      check('a sonda de dois quadros terminou', false, err.message);
+    }
+    fs.rmSync(DUPLO, { force: true });
+    if (duplo) {
+      check('o que um digita chega no outro quadro', duplo.chegou === true, JSON.stringify(duplo));
+      check(
+        'os dois quadros veem as duas pessoas online',
+        duplo.onlineA === '2' && duplo.onlineB === '2',
+        JSON.stringify(duplo)
+      );
+    }
+  }
+  console.log('');
 } finally {
   fs.rmSync(PROBE, { force: true });
   fs.rmSync(CLICK, { force: true });
+  fs.rmSync(DUPLO, { force: true });
 }
 
 console.log(
