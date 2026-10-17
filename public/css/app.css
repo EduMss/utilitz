@@ -1557,8 +1557,44 @@
   background: var(--brand);
   opacity: 0;
   cursor: nwse-resize;
+  /* Invisível também INATIVO: sem isso, as alças escondidas de um item
+     não selecionado "comiam" o clique duplo de edição. */
+  pointer-events: none;
 }
-.pe-item.is-selected .pe-resize { opacity: 1; }
+.pe-item.is-selected .pe-resize { opacity: 1; pointer-events: auto; }
+
+/* Alças do texto: tiras invisíveis na borda movem o bloco (inclusive
+   durante a edição) e quinas escalam o tamanho da fonte. */
+.pe-edge {
+  position: absolute;
+  z-index: 2;
+  cursor: move;
+  pointer-events: none;
+}
+.pe-edge-n { top: -3px; left: -3px; right: -3px; height: 6px; }
+.pe-edge-s { bottom: -3px; left: -3px; right: -3px; height: 6px; }
+.pe-edge-w { top: -3px; bottom: -3px; left: -3px; width: 6px; }
+.pe-edge-e { top: -3px; bottom: -3px; right: -3px; width: 6px; }
+.pe-edge:hover { background: var(--brand); opacity: 0.3; }
+.pe-corner {
+  position: absolute;
+  z-index: 3;
+  width: 11px;
+  height: 11px;
+  border: 1.5px solid #ffffff;
+  border-radius: 3px;
+  background: var(--brand);
+  opacity: 0;
+  pointer-events: none;
+}
+/* Alças só existem (e só interceptam mouse) com o item selecionado:
+   um item não selecionado aceita clique duplo em qualquer lugar. */
+.pe-item.is-selected .pe-corner { opacity: 1; pointer-events: auto; }
+.pe-item.is-selected .pe-edge { pointer-events: auto; }
+.pe-corner-nw { top: -6px; left: -6px; cursor: nwse-resize; }
+.pe-corner-ne { top: -6px; right: -6px; cursor: nesw-resize; }
+.pe-corner-se { bottom: -6px; right: -6px; cursor: nwse-resize; }
+.pe-corner-sw { bottom: -6px; left: -6px; cursor: nesw-resize; }
 .pe-cursor-move, .pe-cursor-move * { cursor: move !important; }
 
 /* ---------- imagens ---------- */

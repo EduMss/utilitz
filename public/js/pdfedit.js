@@ -597,6 +597,26 @@
           el.contentEditable = 'true';
           el.classList.add('is-editing');
         }
+
+        /* Alças do texto: 4 tiras na borda movem o bloco (valem também
+           durante a edição) e 4 quinas escalam o tamanho da fonte. São
+           ilhas `contenteditable=false`, então a digitação não lasca. */
+        ['n', 's', 'w', 'e'].forEach((lado) => {
+          const tira = document.createElement('span');
+          tira.className = 'pe-edge pe-edge-' + lado;
+          tira.dataset.handle = 'edge';
+          tira.contentEditable = 'false';
+          el.appendChild(tira);
+        });
+        /* Depois das tiras: nas interseções as quinas ficam por cima. */
+        ['nw', 'ne', 'se', 'sw'].forEach((canto) => {
+          const quina = document.createElement('span');
+          quina.className = 'pe-corner pe-corner-' + canto;
+          quina.dataset.handle = 'corner';
+          quina.dataset.corner = canto;
+          quina.contentEditable = 'false';
+          el.appendChild(quina);
+        });
       } else {
         const img = state.images.find((im) => im.id === item.imgId);
         el.style.width = (item.w / size.width) * 100 + '%';
@@ -619,11 +639,22 @@
   /* ---------------------------------------------------------
      Seleção e edição de itens
      --------------------------------------------------------- */
+
+  /* Liga/desliga a marcação visual da seleção SEM reconstruir os itens:
+     reconstruir no pointerdown destruía o elemento no meio da sequência
+     de cliques, e o navegador deixava de formar o clique duplo. */
+  function syncSelection() {
+    els.overlay.querySelectorAll('.pe-item').forEach((el) => {
+      el.classList.toggle('is-selected', el.dataset.id === state.selected);
+    });
+    renderLayers(); // o realce da lista acompanha a seleção da folha
+  }
+
   function select(id) {
     if (state.selected === id) return;
     stopEditing();
     state.selected = id;
-    renderOverlay();
+    syncSelection();
     updateToolbar();
   }
 
@@ -631,7 +662,7 @@
     if (!state.selected) return;
     stopEditing();
     state.selected = null;
-    renderOverlay();
+    syncSelection();
     updateToolbar();
   }
 
@@ -640,8 +671,12 @@
     if (!item) return;
     flushEditPending();
     /* Guarda o estado pré-digitação: se o texto mudar, vira passo de
-       desfazer quando a edição fechar (ou antes, se outra ação vier). */
-    state.editPending = { snap: snapshot(), id, text: item.text };
+       desfazer quando a edição fechar (ou antes, se outra ação vier).
+       Um segundo clique duplo durante a edição não re-armazena — isso
+       perderia o snapshot do começo da digitação. */
+    if (!state.editPending || state.editPending.id !== id) {
+      state.editPending = { snap: snapshot(), id, text: item.text };
+    }
     state.editing = id;
     state.selected = id;
     renderOverlay();
@@ -649,9 +684,17 @@
     const el = els.overlay.querySelector('.pe-item[data-id="' + id + '"]');
     if (!el) return;
     el.focus();
-    /* Seleciona o texto todo: a ideia é digitar por cima e pronto. */
+    /* Seleciona o texto todo: a ideia é digitar por cima e pronto. As
+       alças ficam fora do range — se ficassem dentro, digitar por cima
+       apagaria os elementos (voltariam só no próximo redesenho). */
+    let fim = el.childNodes.length;
+    for (let i = 0; i < el.childNodes.length; i++) {
+      const no = el.childNodes[i];
+      if (no.nodeType === 1 && no.dataset && no.dataset.handle) { fim = i; break; }
+    }
     const range = document.createRange();
-    range.selectNodeContents(el);
+    range.setStart(el, 0);
+    range.setEnd(el, fim);
     const sel = window.getSelection();
     sel.removeAllRanges();
     sel.addRange(range);
@@ -667,9 +710,14 @@
       if (item.orig) item.dirty = true;
       el.contentEditable = 'false';
       el.classList.remove('is-editing');
+      el.classList.toggle('is-dirty', !!item.dirty);
     }
     flushEditPending(); // commita a digitação como passo de desfazer, se mudou
-    renderOverlay();
+    /* Texto nativo do PDF que virou sujo precisa do retângulo branco por
+       baixo — único caso em que parar de editar exige redesenho. Nos
+       nossos textos, mexer no DOM direto basta e mantém o elemento vivo
+       para a sequência de cliques em curso (clique duplo!). */
+    if (item && item.orig && item.dirty) renderOverlay();
   }
 
   function normalizeText(value) {
@@ -1144,24 +1192,43 @@
          posicionar o caret, não para arrastar o bloco. */
       if (state.editing === item.id && !event.target.dataset.handle) return;
 
-      /* Só a alça de redimensionar cancela o default: cancelar o pointerdown
-         do item de texto suprimiria o duplo clique de editar (evento
-         derivado dos mousedown/mouseup compatíveis). */
-      if (event.target.dataset.handle === 'resize') event.preventDefault();
+      /* Qualquer alça (imagem, quina ou borda de texto) cancela o default:
+         cancelar o pointerdown do próprio item de texto suprimiria o duplo
+         clique de editar (evento derivado dos mousedown/mouseup compatíveis),
+         mas nas alças isso é o que queremos — elas nunca começam edição. */
+      const handle = event.target.dataset.handle;
+      if (handle) event.preventDefault();
 
       select(item.id);
 
       drag = {
         id: item.id,
-        mode: event.target.dataset.handle === 'resize' ? 'resize' : 'move',
+        mode: handle === 'resize' ? 'resize' : handle === 'corner' ? 'corner' : 'move',
         startX: event.clientX,
         startY: event.clientY,
         item: Object.assign({}, item),
         before: snapshot(), // estado pré-arraste: vira passo de desfazer
+        moved: false,       // vira true ao passar da zona morta de 3px
         ratio: item.type === 'image' && item.w ? item.h / item.w : 0,
       };
-      els.overlay.setPointerCapture(event.pointerId);
-      document.body.classList.add('pe-cursor-move');
+
+      /* Quina de texto: mede a caixa e a âncora (canto oposto ao que foi
+         agarrado) para escalar a fonte a partir dali, como um resize de
+         verdade — a âncora fica parada no papel. */
+      if (drag.mode === 'corner') {
+        const r = el.getBoundingClientRect();
+        const canto = event.target.dataset.corner || 'se';
+        drag.corner = canto;
+        drag.ax = canto.indexOf('w') >= 0 ? r.right : r.left;
+        drag.ay = canto.indexOf('n') >= 0 ? r.bottom : r.top;
+        drag.d0 = Math.hypot(event.clientX - drag.ax, event.clientY - drag.ay) || 1;
+        drag.box = { w: r.width, h: r.height };
+      }
+
+      /* A captura do ponteiro acontece SÓ no pointermove (depois da zona
+         morta de 3px, logo abaixo). Capturar aqui, no pointerdown, mandava
+         o mouseup para a camada overlay: o clique virava alvo comum
+         (overlay) e o clique duplo nunca chegava no item de texto. */
     });
 
     els.overlay.addEventListener('pointermove', (event) => {
@@ -1174,6 +1241,19 @@
       const dy = (event.clientY - drag.startY) / scale;
       const size = pageSize();
 
+      /* Zona morta de 3px: clique simples não arrasta nada. Só o arraste
+         que passa dela captura o ponteiro (para continuar seguindo o
+         mouse fora da folha) — capturar no pointerdown reprova o clique
+         duplo do navegador: o mouseup ia parar na camada overlay e o
+         dblclick nunca chegaria no item. */
+      if (!drag.moved) {
+        if (Math.abs(event.clientX - drag.startX) < 3 &&
+            Math.abs(event.clientY - drag.startY) < 3) return;
+        drag.moved = true;
+        try { els.overlay.setPointerCapture(event.pointerId); } catch (err) { /* ponteiro inativo */ }
+        document.body.classList.add('pe-cursor-move');
+      }
+
       if (drag.mode === 'move') {
         item.x = clamp(drag.item.x + dx, -itemW(item) * 0.5, size.width - itemW(item) * 0.5);
         item.yTop = clamp(drag.item.yTop - dy, -itemH(item) * 0.5, size.height + itemH(item) * 0.5);
@@ -1182,7 +1262,7 @@
         if (item.orig && (item.x !== drag.item.x || item.yTop !== drag.item.yTop)) {
           item.dirty = true;
         }
-      } else {
+      } else if (drag.mode === 'resize') {
         let w = Math.max(12, drag.item.w + dx);
         let h;
         if (event.shiftKey && drag.ratio) {
@@ -1195,6 +1275,21 @@
         }
         item.w = w;
         item.h = h;
+      } else {
+        /* Quina de texto: a fonte cresce com a distância do cursor até a
+           âncora — arrastar para longe aumenta, para perto reduz. */
+        const d = Math.hypot(event.clientX - drag.ax, event.clientY - drag.ay);
+        const nova = clamp(Math.round(drag.item.size * (d / drag.d0) * 10) / 10, 4, 280);
+        const f = nova / drag.item.size;
+        item.size = nova;
+        /* Texto que já vem no PDF: mudar o tamanho conta como redesenho. */
+        if (item.orig && nova !== drag.item.size) item.dirty = true;
+        /* A âncora fica parada no papel: mover a caixa na direção oposta
+           ao canto agarrado, proporcional ao crescimento. */
+        const dw = (drag.box.w * (f - 1)) / scale;
+        const dh = (drag.box.h * (f - 1)) / scale;
+        if (drag.corner.indexOf('w') >= 0) item.x = drag.item.x - dw;
+        if (drag.corner.indexOf('n') >= 0) item.yTop = drag.item.yTop + dh;
       }
 
       el.style.left = (item.x / size.width) * 100 + '%';
@@ -1202,6 +1297,9 @@
       if (drag.mode === 'resize') {
         el.style.width = (item.w / size.width) * 100 + '%';
         el.style.height = (item.h / size.height) * 100 + '%';
+      }
+      if (drag.mode === 'corner') {
+        el.style.fontSize = item.size * scale + 'px';
       }
     });
 
@@ -1212,9 +1310,14 @@
         const live = state.overlays.find((o) => o.id === drag.id);
         if (live && (live.x !== drag.item.x || live.yTop !== drag.item.yTop ||
             live.w !== drag.item.w || live.h !== drag.item.h ||
+            live.size !== drag.item.size ||
             live.dirty !== drag.item.dirty)) {
           commitSnap(drag.before);
         }
+        /* Texto nativo do PDF que passou a ser sujo neste arraste: entra
+           o retângulo branco por baixo (único motivo de redesenhar). */
+        if (live && live.orig && live.dirty !== drag.item.dirty) renderOverlay();
+        if (drag.mode === 'corner') updateToolbar(); // sincroniza o campo de tamanho
       }
       drag = null;
       document.body.classList.remove('pe-cursor-move');
@@ -1223,6 +1326,9 @@
     els.overlay.addEventListener('pointercancel', end);
 
     els.overlay.addEventListener('dblclick', (event) => {
+      /* Cl duplo em qualquer ponto do item — inclusive em cima de uma
+         alça — é intenção de editar. Alças não geram arraste em clique
+         simples (zona morta de 3px), então não há conflito. */
       const el = event.target.closest('.pe-item-text');
       if (el) startEditing(el.dataset.id);
     });
@@ -1255,7 +1361,10 @@
 
     els.overlay.addEventListener('blur', (event) => {
       const el = event.target.closest && event.target.closest('.pe-item-text');
-      if (el && state.editing === el.dataset.id) stopEditing();
+      /* Elemento reconstruído no meio da edição (renderOverlay o removeu):
+         o Chrome dispara blur na remoção, mas isso não é o usuário saindo
+         do texto — encerraria a edição no meio do próprio redesenho. */
+      if (el && el.isConnected && state.editing === el.dataset.id) stopEditing();
     }, true);
 
     /* Arrastar o fundo (fora dos itens) move a folha quando o zoom passa
@@ -1595,7 +1704,7 @@
     let arrastando = null;
     const limpar = () => {
       arrastando = null;
-      $('.pe-layer', els.layers).forEach((el) => {
+      $$('.pe-layer', els.layers).forEach((el) => {
         el.classList.remove('is-dragging', 'is-over-top', 'is-over-bottom');
       });
     };
@@ -1615,7 +1724,7 @@
       event.dataTransfer.dropEffect = 'move';
       const rect = row.getBoundingClientRect();
       const depois = event.clientY > rect.top + rect.height / 2;
-      $('.pe-layer', els.layers).forEach((el) => {
+      $$('.pe-layer', els.layers).forEach((el) => {
         el.classList.remove('is-over-top', 'is-over-bottom');
       });
       if (row.dataset.id !== arrastando) {
