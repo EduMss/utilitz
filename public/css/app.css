@@ -1315,3 +1315,401 @@
   .nav-link { flex: none; }
   .dv-nome { max-width: 45%; }
 }
+
+/* =========================================================
+   Editor de PDF � /editar-pdf
+   Segunda barra no topo, painel de p�ginas � esquerda,
+   palco no meio e biblioteca de imagens � direita.
+   ========================================================= */
+/* A barra global do site é filha do <body> (não um irmão fora), então a
+   altura aqui é a da janela inteira — subtrair --topbar-h de novo deixava
+   uma faixa vazia de 60px embaixo da tela. */
+.page-pdfedit {
+  overflow: hidden;
+  height: 100vh;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* barra de ferramentas logo abaixo da navega��o do site */
+.pe-bar {
+  flex: none;
+  gap: 10px;
+  overflow-x: auto;
+  background: rgba(16, 23, 45, 0.94);
+}
+.pe-sep {
+  flex: none;
+  width: 1px;
+  align-self: stretch;
+  margin: 2px 2px;
+  background: var(--line);
+}
+.pe-select { max-width: 132px; }
+.pe-size { width: 64px; }
+.pe-style-btn { width: 30px; height: 30px; border-radius: 8px; }
+.pe-style-btn.is-on { background: rgba(108, 140, 255, 0.24); color: var(--brand); }
+.pe-style-btn:disabled { opacity: 0.4; cursor: default; }
+
+.pe-color-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  cursor: pointer;
+}
+.pe-color-wrap:has(.pe-color:disabled) { opacity: 0.4; cursor: default; }
+.pe-color {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+.pe-color::-webkit-color-swatch-wrapper { padding: 0; }
+.pe-color::-webkit-color-swatch { border: 0; border-radius: 5px; }
+.pe-color::-moz-color-swatch { border: 0; border-radius: 5px; }
+
+.pe-layout {
+  flex: 1;
+  min-height: 0;
+  /* direita um pouco maior que a esquerda, como pedido */
+  display: grid;
+  grid-template-columns: 184px minmax(0, 1fr) 266px;
+}
+
+.pe-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: #0a1024;
+}
+.pe-pages { border-right: 1px solid var(--line); }
+.pe-images { border-left: 1px solid var(--line); }
+
+.pe-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+}
+
+/* ---------- p�ginas: uma miniatura por linha ---------- */
+.pe-thumbs {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.pe-thumb {
+  position: relative;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: #ffffff;
+  cursor: pointer;
+  overflow: hidden;
+  transition: border-color 0.14s, box-shadow 0.14s, opacity 0.14s;
+}
+.pe-thumb:hover { border-color: var(--brand); }
+.pe-thumb.is-active {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 2px rgba(108, 140, 255, 0.45);
+}
+.pe-thumb.is-dragging { opacity: 0.45; }
+.pe-thumb.is-over-top { box-shadow: 0 -3px 0 0 var(--brand); }
+.pe-thumb.is-over-bottom { box-shadow: 0 3px 0 0 var(--brand); }
+.pe-thumb-canvas { display: block; width: 100%; height: auto; }
+.pe-thumb-num {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  min-width: 20px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(11, 16, 32, 0.82);
+  color: #ffffff;
+  font-size: 11px;
+  text-align: center;
+}
+.pe-thumb-del {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 6px;
+  background: rgba(11, 16, 32, 0.75);
+  color: #ffffff;
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.14s, background 0.14s;
+}
+.pe-thumb:hover .pe-thumb-del { opacity: 1; }
+.pe-thumb-del:hover { background: #e5484d; }
+
+/* ---------- palco ---------- */
+.pe-stage {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  /* sem barra de rolagem: a folha maior que a tela se move arrastando */
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(108, 140, 255, 0.07), transparent 62%),
+    #070b18;
+  cursor: default;
+}
+.pe-stage.can-pan { cursor: grab; }
+.pe-stage.can-pan.is-panning, .pe-stage.is-panning { cursor: grabbing; }
+.pe-empty {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  max-width: 400px;
+  padding: 36px 30px;
+  border: 1.5px dashed var(--line);
+  border-radius: var(--radius);
+  background: rgba(18, 26, 51, 0.55);
+  color: var(--muted);
+  text-align: center;
+}
+.pe-empty strong { color: var(--text); font-size: 15px; }
+.pe-empty .btn { margin-top: 10px; }
+
+/* centrada no palco com translate (não com margin), para poder deslocar */
+.pe-page-wrap {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+.pe-page {
+  position: relative;
+  line-height: 0;
+  background: #ffffff;
+  box-shadow: 0 0 0 1px rgba(16, 23, 45, 0.22), 0 18px 44px rgba(0, 0, 0, 0.5);
+}
+.pe-page canvas { display: block; }
+
+.pe-overlay {
+  position: absolute;
+  inset: 0;
+  line-height: 1.2;
+  /* texto mais largo que a folha � cortado, como sai na impress�o */
+  overflow: hidden;
+}
+
+.pe-item {
+  position: absolute;
+  box-sizing: border-box;
+  cursor: move;
+  user-select: none;
+}
+.pe-item.is-selected { outline: 1.5px solid var(--brand); outline-offset: 2px; }
+.pe-item-text {
+  white-space: pre;
+  line-height: 1.2;
+  min-width: 8px;
+  min-height: 1em;
+  color: #111827;
+  font-family: Helvetica, Arial, sans-serif;
+}
+.pe-item-text.is-editing {
+  cursor: text;
+  user-select: text;
+  outline: 1.5px dashed var(--brand);
+  outline-offset: 2px;
+}
+.pe-item-image {
+  min-width: 12px;
+  min-height: 12px;
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+}
+.pe-resize {
+  position: absolute;
+  right: -6px;
+  bottom: -6px;
+  width: 11px;
+  height: 11px;
+  border: 1.5px solid #ffffff;
+  border-radius: 3px;
+  background: var(--brand);
+  opacity: 0;
+  cursor: nwse-resize;
+}
+.pe-item.is-selected .pe-resize { opacity: 1; }
+.pe-cursor-move, .pe-cursor-move * { cursor: move !important; }
+
+/* ---------- imagens ---------- */
+.pe-img-grid {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 10px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  align-content: start;
+}
+.pe-hint {
+  grid-column: 1 / -1;
+  margin: 4px 2px;
+  color: var(--muted);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+.pe-img {
+  position: relative;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--bg-soft);
+}
+.pe-img:hover { border-color: var(--brand); }
+.pe-img-thumb {
+  aspect-ratio: 4 / 3;
+  background-color: #ffffff;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: contain;
+  cursor: grab;
+}
+.pe-img-name {
+  padding: 4px 6px 0;
+  color: var(--muted);
+  font-size: 10.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pe-img-acts { display: flex; gap: 4px; padding: 5px 6px 6px; }
+.pe-img-acts .btn {
+  flex: 1;
+  min-height: 0;
+  padding: 2px 0;
+  font-size: 10.5px;
+}
+.pe-img-del {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  z-index: 1;
+  width: 20px;
+  height: 20px;
+  background: rgba(11, 16, 32, 0.75);
+  color: #ffffff;
+  opacity: 0;
+  transition: opacity 0.14s;
+}
+.pe-img:hover .pe-img-del { opacity: 1; }
+.pe-img-del:hover { background: #e5484d; }
+
+@media (max-width: 980px) {
+  .pe-layout { grid-template-columns: 148px minmax(0, 1fr) 210px; }
+}
+
+/* ---- Fontes Google embutidas no projeto (usadas na tela e no PDF exportado) ---- */
+@font-face { font-family: 'Roboto'; font-style: normal; font-weight: 400; src: url('/fonts/Roboto-Regular.ttf') format('truetype'); }
+@font-face { font-family: 'Roboto'; font-style: italic; font-weight: 400; src: url('/fonts/Roboto-Italic.ttf') format('truetype'); }
+@font-face { font-family: 'Roboto'; font-style: normal; font-weight: 700; src: url('/fonts/Roboto-Bold.ttf') format('truetype'); }
+@font-face { font-family: 'Roboto'; font-style: italic; font-weight: 700; src: url('/fonts/Roboto-BoldItalic.ttf') format('truetype'); }
+@font-face { font-family: 'Open Sans'; font-style: normal; font-weight: 400; src: url('/fonts/OpenSans-Regular.ttf') format('truetype'); }
+@font-face { font-family: 'Open Sans'; font-style: italic; font-weight: 400; src: url('/fonts/OpenSans-Italic.ttf') format('truetype'); }
+@font-face { font-family: 'Open Sans'; font-style: normal; font-weight: 700; src: url('/fonts/OpenSans-Bold.ttf') format('truetype'); }
+@font-face { font-family: 'Open Sans'; font-style: italic; font-weight: 700; src: url('/fonts/OpenSans-BoldItalic.ttf') format('truetype'); }
+@font-face { font-family: 'Montserrat'; font-style: normal; font-weight: 400; src: url('/fonts/Montserrat-Regular.ttf') format('truetype'); }
+@font-face { font-family: 'Montserrat'; font-style: italic; font-weight: 400; src: url('/fonts/Montserrat-Italic.ttf') format('truetype'); }
+@font-face { font-family: 'Montserrat'; font-style: normal; font-weight: 700; src: url('/fonts/Montserrat-Bold.ttf') format('truetype'); }
+@font-face { font-family: 'Montserrat'; font-style: italic; font-weight: 700; src: url('/fonts/Montserrat-BoldItalic.ttf') format('truetype'); }
+@font-face { font-family: 'Lato'; font-style: normal; font-weight: 400; src: url('/fonts/Lato-Regular.ttf') format('truetype'); }
+@font-face { font-family: 'Lato'; font-style: italic; font-weight: 400; src: url('/fonts/Lato-Italic.ttf') format('truetype'); }
+@font-face { font-family: 'Lato'; font-style: normal; font-weight: 700; src: url('/fonts/Lato-Bold.ttf') format('truetype'); }
+@font-face { font-family: 'Lato'; font-style: italic; font-weight: 700; src: url('/fonts/Lato-BoldItalic.ttf') format('truetype'); }
+@font-face { font-family: 'Fira Sans'; font-style: normal; font-weight: 400; src: url('/fonts/FiraSans-Regular.ttf') format('truetype'); }
+@font-face { font-family: 'Fira Sans'; font-style: italic; font-weight: 400; src: url('/fonts/FiraSans-Italic.ttf') format('truetype'); }
+@font-face { font-family: 'Fira Sans'; font-style: normal; font-weight: 700; src: url('/fonts/FiraSans-Bold.ttf') format('truetype'); }
+@font-face { font-family: 'Fira Sans'; font-style: italic; font-weight: 700; src: url('/fonts/FiraSans-BoldItalic.ttf') format('truetype'); }
+@font-face { font-family: 'Merriweather'; font-style: normal; font-weight: 400; src: url('/fonts/Merriweather-Regular.ttf') format('truetype'); }
+@font-face { font-family: 'Merriweather'; font-style: italic; font-weight: 400; src: url('/fonts/Merriweather-Italic.ttf') format('truetype'); }
+@font-face { font-family: 'Merriweather'; font-style: normal; font-weight: 700; src: url('/fonts/Merriweather-Bold.ttf') format('truetype'); }
+@font-face { font-family: 'Merriweather'; font-style: italic; font-weight: 700; src: url('/fonts/Merriweather-BoldItalic.ttf') format('truetype'); }
+@font-face { font-family: 'Playfair Display'; font-style: normal; font-weight: 400; src: url('/fonts/PlayfairDisplay-Regular.ttf') format('truetype'); }
+@font-face { font-family: 'Playfair Display'; font-style: italic; font-weight: 400; src: url('/fonts/PlayfairDisplay-Italic.ttf') format('truetype'); }
+@font-face { font-family: 'Playfair Display'; font-style: normal; font-weight: 700; src: url('/fonts/PlayfairDisplay-Bold.ttf') format('truetype'); }
+@font-face { font-family: 'Playfair Display'; font-style: italic; font-weight: 700; src: url('/fonts/PlayfairDisplay-BoldItalic.ttf') format('truetype'); }
+@font-face { font-family: 'Caveat'; font-style: normal; font-weight: 400; src: url('/fonts/Caveat-Regular.ttf') format('truetype'); }
+@font-face { font-family: 'Caveat'; font-style: normal; font-weight: 700; src: url('/fonts/Caveat-Bold.ttf') format('truetype'); }
+
+
+/* setas de p�gina acima e abaixo do papel (fora da folha, no fluxo) */
+.pe-nav-arrow {
+  display: block;
+  width: 40px;
+  height: 30px;
+  margin: 0 auto;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(16, 23, 45, 0.85);
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 0.14s, border-color 0.14s, transform 0.14s, opacity 0.14s;
+}
+.pe-nav-arrow:first-of-type { margin-bottom: 12px; }
+.pe-nav-arrow:last-of-type { margin-top: 12px; }
+.pe-nav-arrow:hover:not(:disabled) {
+  color: var(--text);
+  border-color: var(--brand);
+  transform: translateY(-1px);
+}
+.pe-nav-arrow:disabled { opacity: 0.3; cursor: default; }
+
+/* bot�o "Editar texto"/"Concluir" da barra */
+.pe-edit.is-on {
+  background: rgba(108, 140, 255, 0.24);
+  border-color: rgba(108, 140, 255, 0.5);
+  color: var(--brand);
+}
+.pe-edit:disabled { opacity: 0.45; cursor: default; }
+
+/* texto que j� vem no PDF: invis�vel at� ser mexido (o canvas mostra o
+   original); hover mostra o contorno para indicar que d� para arrastar */
+.pe-erase { position: absolute; background: #ffffff; }
+.pe-overlay:not(.hide-pdf-text) .pe-item-frompdf:not(.is-dirty):hover {
+  outline: 1px dashed rgba(108, 140, 255, 0.7);
+  outline-offset: 0;
+}
+.pe-overlay.hide-pdf-text .pe-item-frompdf:not(.is-dirty) { pointer-events: none; }
+
+/* o seletor de fonte mostra cada op��o na pr�pria fonte */
+.pe-select optgroup, .pe-select option { background: #121a33; color: var(--text); }
+#pe-font option[value="Roboto"] { font-family: Roboto, sans-serif; }
+#pe-font option[value="Open Sans"] { font-family: "Open Sans", sans-serif; }
+#pe-font option[value="Montserrat"] { font-family: Montserrat, sans-serif; }
+#pe-font option[value="Lato"] { font-family: Lato, sans-serif; }
+#pe-font option[value="Fira Sans"] { font-family: "Fira Sans", sans-serif; }
+#pe-font option[value="Merriweather"] { font-family: Merriweather, serif; }
+#pe-font option[value="Playfair Display"] { font-family: "Playfair Display", serif; }
+#pe-font option[value="Caveat"] { font-family: Caveat, cursive; }

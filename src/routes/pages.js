@@ -11,6 +11,7 @@ const { notas } = require('../views/notas');
 const { drive } = require('../views/drive');
 const { salas } = require('../lib/salas');
 const { htmlpdf } = require('../views/htmlpdf');
+const { pdfedit } = require('../views/pdfedit');
 
 const router = express.Router();
 
@@ -46,6 +47,10 @@ router.get('/formatar', (req, res) => {
 
 router.get('/html-pdf', (req, res) => {
   page(res, htmlpdf());
+});
+
+router.get('/editar-pdf', (req, res) => {
+  page(res, pdfedit());
 });
 
 /* Salas compartilhadas: a mesma view serve para a página de criar e para a

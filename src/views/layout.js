@@ -17,6 +17,7 @@ const NAV = [
   { href: '/imagens', label: 'Imagens', match: '/imagens' },
   { href: '/formatar', label: 'Formatar', match: '/formatar' },
   { href: '/html-pdf', label: 'HTML → PDF', match: '/html-pdf' },
+  { href: '/editar-pdf', label: 'Editar PDF', match: '/editar-pdf' },
   { href: '/notas', label: 'Notas', match: '/notas' },
   { href: '/drive', label: 'Drive', match: '/drive' },
 ];
