@@ -38,7 +38,7 @@ const MD = '# Olá\n\nUm **texto** com `código`.\n\n## Seção\n\n- a\n- b\n';
     const r = await fetch(BASE + '/');
     assert.strictEqual(r.status, 200);
     const t = await r.text();
-    assert.ok(/Markdown Studio/.test(t), 'título ausente');
+    assert.ok(/Utilitz Studio/.test(t), 'título ausente');
   });
 
   await check('visualizador responde 200', async () => {

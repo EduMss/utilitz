@@ -14,7 +14,7 @@ function sampleMarkdown() {
   return [
     '---',
     'title: Documento de Verificação',
-    'author: Markdown Studio',
+    'author: Utilitz Studio',
     '---',
     '',
     '# Título principal',

@@ -72,7 +72,7 @@
     },
     {
       key: 'html', type: 'html', label: 'HTML',
-      text: '<div class="cartao"><h2>Markdown Studio</h2><p>Ferramenta para <b>ler</b> e ' +
+      text: '<div class="cartao"><h2>Utilitz Studio</h2><p>Ferramenta para <b>ler</b> e ' +
         '<b>exportar</b> documentos.</p><ul><li>Visualização em tela cheia</li><li>PDF</li>' +
         '<li>Conversor de imagens</li></ul></div>',
     },

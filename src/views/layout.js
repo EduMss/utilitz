@@ -96,7 +96,7 @@ function layout(options) {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>${escapeHtml(title)} · Markdown Studio</title>
+  <title>${escapeHtml(title)} · Utilitz Studio</title>
   <meta name="description" content="${escapeHtml(description)}">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="${versioned('/css/base.css')}">
@@ -107,7 +107,7 @@ function layout(options) {
 ${chrome ? `<header class="topbar">
   <a class="brand" href="/">
     <span class="brand-mark">M↓</span>
-    <span class="brand-text">Markdown Studio</span>
+    <span class="brand-text">Utilitz Studio</span>
   </a>
   <nav class="nav">${nav(active)}</nav>
 </header>` : ''}

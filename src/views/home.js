@@ -192,7 +192,7 @@ function home() {
   </section>
 
   <footer class="foot">
-    <span>Markdown Studio · Express + markdown-it + PDFKit + Paged.js</span>
+    <span>Utilitz Studio · Express + markdown-it + PDFKit + Paged.js</span>
   </footer>
 </main>
 

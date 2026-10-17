@@ -12,7 +12,7 @@ const shared = require('../public/js/shared-settings.js');
 
 const SAMPLE = `---
 title: Relatório de Teste
-author: Equipe Markdown Studio
+author: Equipe Utilitz Studio
 ---
 
 # Introdução
@@ -79,7 +79,7 @@ ${Array.from({ length: 22 }, (_, i) => `Parágrafo ${i + 1} para forçar a quebr
 
 async function main() {
   // por padrão gera na pasta temporária do sistema, para não sujar o projeto
-  const target = path.resolve(process.argv[2] || path.join(os.tmpdir(), 'markdown-studio-exemplo.pdf'));
+  const target = path.resolve(process.argv[2] || path.join(os.tmpdir(), 'utilitz-studio-exemplo.pdf'));
   const settings = Object.assign(shared.applyPreset('relatorio'), {
     showToc: true,
     tocDepth: 3,

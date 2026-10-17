@@ -85,7 +85,7 @@ store.ensure();
 
 const server = app.listen(PORT, HOST, () => {
   console.log('');
-  console.log('  Markdown Studio');
+  console.log('  Utilitz Studio');
   console.log('  ---------------------------------------------');
   console.log('  Início      http://localhost:' + PORT + '/');
   console.log('  Visualizar  http://localhost:' + PORT + '/visualizar');

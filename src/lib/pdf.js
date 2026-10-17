@@ -256,10 +256,10 @@ class PdfRenderer {
     this.registerFonts(doc);
 
     doc.info.Title = this.title;
-    doc.info.Author = this.meta.author || (this.options.metadata && this.options.metadata.author) || 'Markdown Studio';
-    doc.info.Subject = this.meta.subject || 'Gerado com Markdown Studio';
-    doc.info.Creator = 'Markdown Studio';
-    doc.info.Producer = 'Markdown Studio';
+    doc.info.Author = this.meta.author || (this.options.metadata && this.options.metadata.author) || 'Utilitz Studio';
+    doc.info.Subject = this.meta.subject || 'Gerado com Utilitz Studio';
+    doc.info.Creator = 'Utilitz Studio';
+    doc.info.Producer = 'Utilitz Studio';
 
     return doc;
   }
