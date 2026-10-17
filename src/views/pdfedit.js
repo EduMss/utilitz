@@ -94,8 +94,11 @@ function pdfedit() {
   <section class="pe-stage" id="pe-stage" aria-label="Página atual">
     <div class="pe-empty" id="pe-empty">
       <strong>Arraste um PDF para cá</strong>
-      <span>ou clique em “Abrir PDF” lá em cima — o arquivo não sai do seu computador.</span>
-      <button type="button" class="btn btn-primary" id="pe-open-2">Abrir PDF</button>
+      <span>ou comece um documento em branco — nada sai do seu computador.</span>
+      <div class="pe-empty-actions">
+        <button type="button" class="btn btn-primary" id="pe-open-2">Abrir PDF</button>
+        <button type="button" class="btn" id="pe-empty-blank">Criar em branco</button>
+      </div>
     </div>
     <div class="pe-page-wrap" id="pe-page-wrap" hidden>
       <button type="button" class="pe-nav-arrow" id="pe-prev-page" title="Página anterior" disabled>

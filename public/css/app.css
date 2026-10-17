@@ -1494,7 +1494,7 @@
   text-align: center;
 }
 .pe-empty strong { color: var(--text); font-size: 15px; }
-.pe-empty .btn { margin-top: 10px; }
+.pe-empty-actions { display: flex; gap: 8px; margin-top: 10px; }
 
 /* centrada no palco com translate (não com margin), para poder deslocar */
 .pe-page-wrap {

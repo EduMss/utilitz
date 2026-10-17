@@ -843,7 +843,18 @@
   }
 
   async function addBlankPage(afterIndex) {
-    if (!state.doc) return toast('Abra um PDF primeiro.', 'error');
+    if (!state.doc) {
+      /* Sem PDF aberto, o "+" cria o documento do zero: uma página A4 em
+         branco já recebe imagens e textos — dá para montar um PDF a
+         partir do nada. */
+      clearHistory();
+      state.doc = await PDFLib.PDFDocument.create();
+      state.doc.addPage([A4.width, A4.height]);
+      state.page = 0;
+      await syncDoc();
+      toast('Documento novo criado: página A4 em branco.');
+      return;
+    }
     clearHistory(); // a estrutura de páginas muda: snapshots antigos não valem mais
     const after = clamp(afterIndex == null ? state.page : afterIndex, 0, pageCount() - 1);
     const size = pageSize(after);
@@ -1931,6 +1942,7 @@
 
     els.open.addEventListener('click', () => pick(els.pdfInput));
     els.open2.addEventListener('click', () => pick(els.pdfInput));
+    els.emptyBlank.addEventListener('click', () => addBlankPage());
     els.pdfInput.addEventListener('change', async () => {
       const file = els.pdfInput.files && els.pdfInput.files[0];
       els.pdfInput.value = '';
@@ -2053,6 +2065,7 @@
     els.zoom = $('#pe-zoom');
     els.stage = $('#pe-stage');
     els.empty = $('#pe-empty');
+    els.emptyBlank = $('#pe-empty-blank');
     els.pageWrap = $('#pe-page-wrap');
     els.page = $('#pe-page');
     els.prevPage = $('#pe-prev-page');
