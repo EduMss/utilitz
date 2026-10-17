@@ -1186,7 +1186,10 @@
         if (event.shiftKey && drag.ratio) {
           h = w * drag.ratio;
         } else {
-          h = Math.max(12, drag.item.h - dy);
+          /* Sinal positivo: a alça fica na borda de baixo, então arrastar
+             para baixo cresce (a borda de cima fica fixa no papel) e para
+             cima encolhe — a borda segue o cursor. */
+          h = Math.max(12, drag.item.h + dy);
         }
         item.w = w;
         item.h = h;
