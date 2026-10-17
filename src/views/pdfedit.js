@@ -122,6 +122,20 @@ function pdfedit() {
     </header>
     <div class="pe-img-grid" id="pe-img-grid" aria-live="polite"></div>
   </aside>
+
+  <button type="button" class="pe-drawer-toggle" id="pe-drawer-toggle" title="Mostrar as camadas" aria-expanded="false" aria-controls="pe-drawer">
+    <svg class="che-left" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M9.9 3.2 5.1 8l4.8 4.8 1.1-1.1L7.3 8l3.7-3.7-1.1-1.1Z"/></svg>
+    <svg class="che-right" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M6.1 3.2 10.9 8l-4.8 4.8-1.1-1.1L8.7 8 5 4.3l1.1-1.1Z"/></svg>
+  </button>
+  <aside class="pe-panel pe-drawer" id="pe-drawer" aria-label="Camadas da página">
+    <header class="pe-head">
+      <strong>Camadas</strong>
+      <span class="muted" id="pe-layercount">0</span>
+      <span class="grow"></span>
+      <span class="muted" title="A primeira camada da lista é a que fica por cima na página. Arraste as linhas para reordenar ou use as setas; clique para selecionar o item.">cima ↑ / baixo ↓</span>
+    </header>
+    <div class="pe-layers" id="pe-layers"></div>
+  </aside>
 </div>
 
 <input type="file" id="pe-pdf-input" accept="application/pdf,.pdf" hidden>

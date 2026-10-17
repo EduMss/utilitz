@@ -1378,9 +1378,10 @@
 .pe-layout {
   flex: 1;
   min-height: 0;
-  /* direita um pouco maior que a esquerda, como pedido */
+  /* direita um pouco maior que a esquerda, como pedido; as duas últimas
+     colunas são a seta e a gaveta de camadas (largura 0 quando fechada) */
   display: grid;
-  grid-template-columns: 184px minmax(0, 1fr) 266px;
+  grid-template-columns: 184px minmax(0, 1fr) 266px 30px auto;
 }
 
 .pe-panel {
@@ -1627,8 +1628,99 @@
 .pe-img:hover .pe-img-del { opacity: 1; }
 .pe-img-del:hover { background: #e5484d; }
 
+/* ---------- camadas: gaveta ao lado das imagens ---------- */
+.pe-drawer-toggle {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 11px;
+  border: none;
+  border-left: 1px solid var(--line);
+  background: #0a1024;
+  color: var(--muted);
+  cursor: pointer;
+}
+.pe-drawer-toggle:hover { color: var(--text); }
+.pe-drawer-toggle .che-right { display: none; }
+.pe-drawer-toggle.is-open .che-left { display: none; }
+.pe-drawer-toggle.is-open .che-right { display: block; }
+.pe-drawer {
+  width: 0;
+  overflow: hidden;
+  border-left: 1px solid var(--line);
+  transition: width 0.18s ease;
+}
+.pe-drawer.is-open { width: 252px; }
+/* o conteúdo não espremido durante a transição: a gaveta só recorta */
+.pe-drawer .pe-head, .pe-drawer .pe-layers { min-width: 250px; }
+.pe-drawer .pe-head .muted { font-size: 10.5px; }
+.pe-layers {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.pe-layer {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 5px 4px 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--bg-soft);
+  cursor: pointer;
+}
+.pe-layer:hover { border-color: var(--brand); }
+.pe-layer.is-active { border-color: var(--brand); background: rgba(99, 102, 241, 0.14); }
+.pe-layer.is-dragging { opacity: 0.45; }
+.pe-layer.is-over-top { box-shadow: inset 0 2px 0 var(--brand); }
+.pe-layer.is-over-bottom { box-shadow: inset 0 -2px 0 var(--brand); }
+.pe-layer-prev {
+  flex: none;
+  width: 32px;
+  height: 23px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 2px;
+  background: #ffffff;
+  background-size: cover;
+  background-position: center;
+  font-size: 6.5px;
+  line-height: 1.15;
+  white-space: nowrap;
+}
+.pe-layer-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--text);
+}
+.pe-layer-btn {
+  flex: none;
+  display: flex;
+  padding: 3px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+.pe-layer-btn:hover:not(:disabled) { background: var(--bg); color: var(--text); }
+.pe-layer-btn:disabled { opacity: 0.3; cursor: default; }
+.pe-layers-empty { margin: 0; padding: 8px 4px; font-size: 11.5px; text-align: center; }
+
 @media (max-width: 980px) {
-  .pe-layout { grid-template-columns: 148px minmax(0, 1fr) 210px; }
+  .pe-layout { grid-template-columns: 148px minmax(0, 1fr) 210px 26px auto; }
 }
 
 /* ---- Fontes Google embutidas no projeto (usadas na tela e no PDF exportado) ---- */

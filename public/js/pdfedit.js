@@ -612,6 +612,8 @@
       if (state.selected === item.id) el.classList.add('is-selected');
       layer.appendChild(el);
     });
+
+    renderLayers(); // a lista de camadas acompanha a folha
   }
 
   /* ---------------------------------------------------------
@@ -1462,6 +1464,190 @@
   }
 
   /* ---------------------------------------------------------
+     Camadas — o que está por cima do quê na página atual
+     --------------------------------------------------------- */
+  const SETA_CIMA = '<svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path fill="currentColor" d="M8 4.2 3.6 8.6l1.1 1.1L7.2 7.2V13h1.6V7.2l2.5 2.5 1.1-1.1L8 4.2Z"/></svg>';
+  const SETA_BAIXO = '<svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path fill="currentColor" d="M8 11.8 12.4 7.4l-1.1-1.1L8.8 8.8V3H7.2v5.8L4.7 6.3 3.6 7.4 8 11.8Z"/></svg>';
+
+  /** Rótulo da camada: a primeira linha do texto, ou o nome do arquivo. */
+  function layerLabel(item) {
+    if (item.type === 'text') {
+      const primeira = (item.text || '').split('\n')[0].trim();
+      return primeira || '(texto vazio)';
+    }
+    const img = state.images.find((im) => im.id === item.imgId);
+    return img ? img.name : '(imagem removida)';
+  }
+
+  function layerBtn(act, title, disabled) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'pe-layer-btn';
+    b.dataset.act = act;
+    b.title = title;
+    b.disabled = !!disabled;
+    b.innerHTML = act === 'up' ? SETA_CIMA : SETA_BAIXO;
+    return b;
+  }
+
+  /* Repinta a lista: topo da pilha primeiro (como nos editores de imagem),
+     seleção em dia e setas inativas nos extremos. Roda junto do
+     renderOverlay e da syncSelection — nunca por conta própria. */
+  function renderLayers() {
+    if (!els.layers) return;
+    const items = overlaysOf(state.page);
+    els.layerCount.textContent = String(items.length);
+    els.layers.textContent = '';
+    if (!items.length) {
+      const vazio = document.createElement('p');
+      vazio.className = 'pe-layers-empty muted';
+      vazio.textContent = 'Nada nesta página ainda — insira imagens ou texto.';
+      els.layers.appendChild(vazio);
+      return;
+    }
+    items.slice().reverse().forEach((item, i) => {
+      const row = document.createElement('div');
+      row.className = 'pe-layer' + (state.selected === item.id ? ' is-active' : '');
+      row.dataset.id = item.id;
+      row.draggable = true;
+      row.title = 'Clique para selecionar; arraste para reordenar';
+
+      /* Miniatura do conteúdo: a imagem em si, ou o texto renderizado
+         com a fonte/cor/tamanho do item. */
+      const previa = document.createElement('span');
+      previa.className = 'pe-layer-prev';
+      if (item.type === 'image') {
+        const img = state.images.find((im) => im.id === item.imgId);
+        if (img) previa.style.backgroundImage = 'url("' + img.dataUrl + '")';
+      } else {
+        const familia = FAMILIES[item.family] || FAMILIES.Helvetica;
+        previa.style.fontFamily = familia.css;
+        previa.style.fontWeight = item.bold ? '700' : '400';
+        previa.style.fontStyle = item.italic ? 'italic' : 'normal';
+        previa.style.color = item.color || '#1f2937';
+        previa.textContent = (item.text || ' ').split('\n')[0].slice(0, 14);
+      }
+      row.appendChild(previa);
+
+      const nome = document.createElement('span');
+      nome.className = 'pe-layer-name';
+      nome.textContent = layerLabel(item);
+      row.appendChild(nome);
+
+      row.appendChild(layerBtn('up', 'Subir: fica por cima', i === 0));
+      row.appendChild(layerBtn('down', 'Descer: fica por baixo', i === items.length - 1));
+      els.layers.appendChild(row);
+    });
+  }
+
+  /** Grava uma nova ordem (topo->base) de volta no state.overlays. Os
+      itens das outras páginas ficam onde estão — só o conteúdo dos
+      espaços desta página é reescrito na ordem nova. O array é base->topo,
+      por isso a inversão antes de preencher os espaços. */
+  function applyLayerOrder(vis) {
+    beginChange(); // estado pré-troca vira passo de desfazer
+    let k = 0;
+    const baseParaTopo = vis.slice().reverse();
+    state.overlays = state.overlays.map((o) => (o.page === state.page ? baseParaTopo[k++] : o));
+    renderOverlay(); // repinta a folha e a própria lista
+  }
+
+  /** Sobe/desce a camada na pilha (troca com a vizinha). */
+  function moveLayer(id, dir) {
+    const vis = overlaysOf(state.page).slice().reverse();
+    const de = vis.findIndex((o) => o.id === id);
+    if (de < 0) return;
+    const alvo = de + dir;
+    if (alvo < 0 || alvo >= vis.length) return;
+    const item = vis.splice(de, 1)[0];
+    vis.splice(alvo, 0, item);
+    applyLayerOrder(vis);
+  }
+
+  /** Reordenar arrastando: move `id` para a posição de `alvoId`, antes ou
+      depois conforme o meio da linha onde o mouse soltou. */
+  function moveLayerTo(id, alvoId, depois) {
+    if (id === alvoId) return;
+    const vis = overlaysOf(state.page).slice().reverse();
+    const de = vis.findIndex((o) => o.id === id);
+    if (de < 0) return;
+    const item = vis.splice(de, 1)[0];
+    const para = vis.findIndex((o) => o.id === alvoId);
+    if (para < 0) return;
+    vis.splice(para + (depois ? 1 : 0), 0, item);
+    applyLayerOrder(vis);
+  }
+
+  function bindLayers() {
+    els.layers.addEventListener('click', (event) => {
+      const row = event.target.closest('.pe-layer');
+      if (!row) return;
+      const act = event.target.closest('[data-act]');
+      if (act) {
+        /* A lista é o inverso do array: subir na lista = índice -1. */
+        moveLayer(row.dataset.id, act.dataset.act === 'up' ? -1 : 1);
+        return;
+      }
+      select(row.dataset.id);
+    });
+
+    /* Reordenar arrastando — mesma receita das miniaturas de página. */
+    let arrastando = null;
+    const limpar = () => {
+      arrastando = null;
+      $('.pe-layer', els.layers).forEach((el) => {
+        el.classList.remove('is-dragging', 'is-over-top', 'is-over-bottom');
+      });
+    };
+    els.layers.addEventListener('dragstart', (event) => {
+      const row = event.target.closest('.pe-layer');
+      if (!row) return;
+      arrastando = row.dataset.id;
+      row.classList.add('is-dragging');
+      event.dataTransfer.effectAllowed = 'move';
+      event.dataTransfer.setData('text/pe-layer', arrastando);
+    });
+    els.layers.addEventListener('dragover', (event) => {
+      if (!arrastando) return;
+      const row = event.target.closest('.pe-layer');
+      if (!row) return;
+      event.preventDefault();
+      event.dataTransfer.dropEffect = 'move';
+      const rect = row.getBoundingClientRect();
+      const depois = event.clientY > rect.top + rect.height / 2;
+      $('.pe-layer', els.layers).forEach((el) => {
+        el.classList.remove('is-over-top', 'is-over-bottom');
+      });
+      if (row.dataset.id !== arrastando) {
+        row.classList.add(depois ? 'is-over-bottom' : 'is-over-top');
+      }
+    });
+    els.layers.addEventListener('drop', (event) => {
+      if (!arrastando) return;
+      const row = event.target.closest('.pe-layer');
+      if (!row) { limpar(); return; }
+      event.preventDefault();
+      const rect = row.getBoundingClientRect();
+      const depois = event.clientY > rect.top + rect.height / 2;
+      const de = arrastando;
+      const para = row.dataset.id;
+      limpar();
+      moveLayerTo(de, para, depois);
+    });
+    els.layers.addEventListener('dragend', limpar);
+  }
+
+  /** Gaveta de camadas: abre/fecha com a seta na borda do painel. */
+  function bindDrawer() {
+    els.drawerToggle.addEventListener('click', () => {
+      const aberto = els.drawer.classList.toggle('is-open');
+      els.drawerToggle.classList.toggle('is-open', aberto);
+      els.drawerToggle.setAttribute('aria-expanded', String(aberto));
+      els.drawerToggle.title = aberto ? 'Esconder as camadas' : 'Mostrar as camadas';
+    });
+  }
+
+  /* ---------------------------------------------------------
      Exportar
      --------------------------------------------------------- */
   async function exportPdf() {
@@ -1768,6 +1954,10 @@
     els.pageCount = $('#pe-pagecount');
     els.imgGrid = $('#pe-img-grid');
     els.imgCount = $('#pe-imgcount');
+    els.layers = $('#pe-layers');
+    els.layerCount = $('#pe-layercount');
+    els.drawer = $('#pe-drawer');
+    els.drawerToggle = $('#pe-drawer-toggle');
     els.addBlank = $('#pe-add-blank');
     els.addImg = $('#pe-add-img');
     els.pdfInput = $('#pe-pdf-input');
@@ -1787,7 +1977,10 @@
     bindStageDrag();
     bindThumbs();
     bindImageCards();
+    bindLayers();
+    bindDrawer();
     bindFileDrops();
+    renderLayers();
 
     const onResize = window.MD.debounce(() => {
       if (state.pdf && state.zoom === 'fit') renderStage();
