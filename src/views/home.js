@@ -24,6 +24,10 @@ const FEATURES = [
     text: 'JSON, XML, HTML, Markdown, CSV, texto e código (Python, C#, Java…) saem arrumados, realçados e com número de linha.',
   },
   {
+    title: 'Logs em planilha',
+    text: 'Solte um log em JSON, NDJSON, CSV ou Excel e ele vira tabela: filtre colunas, pesquise, ordene e exporte de volta para CSV ou Excel.',
+  },
+  {
     title: 'Conversor de HTML para PDF',
     text: 'Cole uma página inteira ou um pedaço de HTML e baixe o PDF com papel, margens e orientação à sua escolha.',
   },
@@ -152,6 +156,7 @@ function home() {
       <a class="btn btn-ghost" href="/imagens">Converter imagens</a>
       <a class="btn btn-ghost" href="/formatar">Formatar arquivos</a>
       <a class="btn btn-ghost" href="/html-pdf">HTML para PDF</a>
+      <a class="btn btn-ghost" href="/logs">Logs em planilha</a>
       <a class="btn btn-ghost" href="/notas">Notas compartilhadas</a>
       <a class="btn btn-ghost" href="/drive">Drive temporário</a>
     </div>

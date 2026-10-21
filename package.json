@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "test": "node scripts/check-integrity.js && node scripts/test-format.js && node scripts/test-render.js && node scripts/test-matrix.js && node scripts/test-image-codecs.js && node scripts/test-html-pdf.js && node scripts/test-salas.js",
+    "test": "node scripts/check-integrity.js && node scripts/test-format.js && node scripts/test-render.js && node scripts/test-matrix.js && node scripts/test-image-codecs.js && node scripts/test-html-pdf.js && node scripts/test-salas.js && node scripts/test-log-core.js && node scripts/test-logs.js",
     "test:format": "node scripts/test-format.js",
     "test:render": "node scripts/test-render.js",
     "test:pdf": "node scripts/test-matrix.js",
@@ -15,6 +15,8 @@
     "test:salas": "node scripts/test-salas.js",
     "test:images:browser": "node scripts/probe-images.js",
     "test:api": "node scripts/test-api.js",
+    "test:logs": "node scripts/test-log-core.js && node scripts/test-logs.js",
+    "test:logs:probe": "node scripts/probe-logs.js",
     "test:browser": "node scripts/probe-browser.js",
     "check": "node scripts/check-integrity.js",
     "smoke": "node scripts/smoke-pdf.js"
@@ -23,7 +25,8 @@
     "markdown",
     "pdf",
     "editor",
-    "express"
+    "express",
+    "logs"
   ],
   "license": "MIT",
   "type": "commonjs",
@@ -35,6 +38,7 @@
     "highlight.js": "^11.12.0",
     "markdown-it": "^15.0.2",
     "pagedjs": "^0.4.3",
-    "pdfkit": "^0.20.2"
+    "pdfkit": "^0.20.2",
+    "xlsx": "^0.18.5"
   }
 }

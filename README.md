@@ -61,6 +61,7 @@ docker compose down           # derruba (preserva o volume)
 | `/visualizar` | Visualizador em tela cheia. Editor e sumário guardam o texto em uma gaveta para deixar a leitura limpia. |
 | `/pdf` | Conversor com tela dividida e painel de configurações. |
 | `/formatar` | Formatação de arquivos: JSON, XML, HTML, Markdown, CSV, texto e código (Python, C#, Java…). Prévia com números de linha, realce de sintaxe e botões de copiar/baixar — tudo no navegador, nada vai para o servidor. |
+| `/logs` | Logs em planilha: JSON, NDJSON, CSV, TSV, XLSX, XLS, ODS e logs de linha (.log do IIS e de pm2/Nest) viram tabela no navegador, com pesquisa, filtro por coluna (texto ou caixa de valores), ordenação, paginação e exportação de volta para CSV e Excel. |
 | `/html-pdf` | Conversor de HTML para PDF: página inteira ou pedaço solto, com prévia em iframe, papel, margens, orientação e impressão de fundos. |
 | `/notas` | Bloco de notas compartilhado: uma sala efêmera por link, edição em tempo real e senha opcional. |
 | `/drive` | Drive temporário: arquivos por link público ou privado, com limite por upload e limpeza automática depois do prazo. |
@@ -90,6 +91,41 @@ Diferente do PDF de markdown, não há plano B no servidor: o PDFKit não lê HT
 então sem Chrome/Chromium/Edge a API responde `503` com a explicação e o botão
 **Imprimir** da página resolve pelo diálogo nativo do navegador ("Salvar como
 PDF"). O HTML só trafega entre a página e o servidor da sua própria máquina.
+
+## Logs em planilha
+
+A `/logs` lê JSON, NDJSON, CSV, TSV, XLSX, XLS e ODS no navegador, com o
+build do SheetJS vendido em `public/vendor/xlsx.min.js` (cópia do pacote
+`xlsx` do npm; para renovar: `npm i xlsx` e recopie
+`node_modules/xlsx/dist/xlsx.full.min.js`).
+Também lê logs de linha em `.log` (ou colados no modal): IIS em formato W3C
+(diretivas `#Fields`, que podem se repetir entre segmentos; `date` + `time`
+viram uma coluna `datahora` e `-` vira célula vazia), saída de pm2/Nest
+(cores ANSI removidas, `[Nest] pid - 16/10/2026, 14:39:57 [Módulo] mensagem
++2ms` vira colunas `origem`, `pid`, `datahora`, `modulo`, `mensagem` e
+`delta_ms`; o SQL do Sequelize da linha seguinte gruda no registro anterior
+na coluna `sql`) e o nginx no docker: o embrulho JSON do Docker
+(`{"log":"…","stream":…,"time":…}`) é aberto a cada linha, o acesso em
+formato combined vira `ip`, `usuario`, `datahora` (fuso da linha descontado),
+`metodo`, `rota`, `protocolo`, `status`, `bytes`, `referer` e `user_agent`,
+o log de erro do `stderr` vira `severidade`, `pid`/`tid`, `conexao`,
+`mensagem`, `ip` e `servidor`, e o registro ganha as colunas `stream` e
+`time` do Docker. Linha sem carimbo entra como continuação da mensagem
+anterior (rastro de pilha). O parser fica em `public/js/log-core.js`, módulo
+puro compartilhado entre a página e o `node scripts/test-log-core.js`.
+O dado é achatado automaticamente — objetos aninhados viram colunas `a.b.c`,
+envelopes de API (`{ "data": [...] }`) abrem sozinhos, NDJSON (um objeto por
+linha) vira um registro por linha e planilhas de várias abas ganham um seletor
+que abre a maior por padrão. A primeira linha de rótulos vira cabeçalho; a
+segunda "status" vira "status (2)".
+
+Em cima disso há pesquisa global, ordenação por coluna (asc → desc → sem,
+vazios sempre por último), menu de filtro por coluna com operadores de texto
+(ou numérico, nas colunas do tipo número) e caixa de valores à la Excel
+(busca + contagem por valor, aplicada ao fechar), colunas escondidas, paginação
+e exportação do que está filtrado — Excel `.xlsx`, CSV (vírgula ou ponto e
+vírgula, ambos com BOM para o Excel de pt-BR) e copiar para a área de
+transferência como TSV. Nada sai do navegador.
 
 ## Salas compartilhadas
 
@@ -263,15 +299,17 @@ O Markdown aceita HTML bruto, então a saída passa por um higienizador que remo
 ## Testes
 
 ```bash
-npm test              # integridade + formatação + renderização + matriz de PDF + html->pdf + salas
+npm test              # integridade + formatação + renderização + matriz de PDF + html->pdf + salas + logs
 npm run check         # encoding, chaves CSS e assets referenciados
 npm run test:format   # núcleo de formatação (JSON, XML/HTML, Markdown, CSV, texto, código)
 npm run test:render   # renderização e higienização
 npm run test:pdf      # matriz de presets, temas, numeração e casos-limite
 npm run test:html-pdf # montador de documento e impressão do conversor de HTML para PDF
 npm run test:salas    # núcleo das salas: expiração, senha, limites, upload e download
+npm run test:logs     # núcleo de logs de linha (com os exemplos reais) + página de logs (exige o servidor)
 npm run test:api      # ponta a ponta (exige o servidor rodando)
 npm run test:browser  # render real em Chrome/Edge headless (exige o servidor)
+npm run test:logs:probe # sonda do /logs em Chrome/Edge headless (exige o servidor)
 npm run smoke         # gera um PDF de exemplo com todos os recursos
 ```
 

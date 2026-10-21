@@ -7,6 +7,7 @@ const { viewer } = require('../views/viewer');
 const { pdf } = require('../views/pdf');
 const { images } = require('../views/images');
 const { format } = require('../views/format');
+const { logs } = require('../views/logs');
 const { notas } = require('../views/notas');
 const { drive } = require('../views/drive');
 const { salas } = require('../lib/salas');
@@ -43,6 +44,10 @@ router.get('/imagens', (req, res) => {
 
 router.get('/formatar', (req, res) => {
   page(res, format());
+});
+
+router.get('/logs', (req, res) => {
+  page(res, logs());
 });
 
 router.get('/html-pdf', (req, res) => {

@@ -1317,9 +1317,9 @@
 }
 
 /* =========================================================
-   Editor de PDF � /editar-pdf
-   Segunda barra no topo, painel de p�ginas � esquerda,
-   palco no meio e biblioteca de imagens � direita.
+   Editor de PDF — /editar-pdf
+   Segunda barra no topo, painel de páginas à esquerda,
+   palco no meio e biblioteca de imagens à direita.
    ========================================================= */
 /* A barra global do site é filha do <body> (não um irmão fora), então a
    altura aqui é a da janela inteira — subtrair --topbar-h de novo deixava
@@ -1332,7 +1332,7 @@
   flex-direction: column;
 }
 
-/* barra de ferramentas logo abaixo da navega��o do site */
+/* barra de ferramentas logo abaixo da navegação do site */
 .pe-bar {
   flex: none;
   gap: 10px;
@@ -1403,7 +1403,7 @@
   font-size: 13px;
 }
 
-/* ---------- p�ginas: uma miniatura por linha ---------- */
+/* ---------- páginas: uma miniatura por linha ---------- */
 .pe-thumbs {
   flex: 1;
   min-height: 0;
@@ -1515,7 +1515,7 @@
   position: absolute;
   inset: 0;
   line-height: 1.2;
-  /* texto mais largo que a folha � cortado, como sai na impress�o */
+  /* texto mais largo que a folha é cortado, como sai na impressão */
   overflow: hidden;
 }
 
@@ -1792,7 +1792,7 @@
 @font-face { font-family: 'Caveat'; font-style: normal; font-weight: 700; src: url('/fonts/Caveat-Bold.ttf') format('truetype'); }
 
 
-/* setas de p�gina acima e abaixo do papel (fora da folha, no fluxo) */
+/* setas de página acima e abaixo do papel (fora da folha, no fluxo) */
 .pe-nav-arrow {
   display: block;
   width: 40px;
@@ -1814,7 +1814,7 @@
 }
 .pe-nav-arrow:disabled { opacity: 0.3; cursor: default; }
 
-/* bot�o "Editar texto"/"Concluir" da barra */
+/* botão "Editar texto"/"Concluir" da barra */
 .pe-edit.is-on {
   background: rgba(108, 140, 255, 0.24);
   border-color: rgba(108, 140, 255, 0.5);
@@ -1822,8 +1822,8 @@
 }
 .pe-edit:disabled { opacity: 0.45; cursor: default; }
 
-/* texto que j� vem no PDF: invis�vel at� ser mexido (o canvas mostra o
-   original); hover mostra o contorno para indicar que d� para arrastar */
+/* texto que já vem no PDF: invisível até ser mexido (o canvas mostra o
+   original); hover mostra o contorno para indicar que dá para arrastar */
 .pe-erase { position: absolute; background: #ffffff; }
 .pe-overlay:not(.hide-pdf-text) .pe-item-frompdf:not(.is-dirty):hover {
   outline: 1px dashed rgba(108, 140, 255, 0.7);
@@ -1831,7 +1831,7 @@
 }
 .pe-overlay.hide-pdf-text .pe-item-frompdf:not(.is-dirty) { pointer-events: none; }
 
-/* o seletor de fonte mostra cada op��o na pr�pria fonte */
+/* o seletor de fonte mostra cada opção na própria fonte */
 .pe-select optgroup, .pe-select option { background: #121a33; color: var(--text); }
 #pe-font option[value="Roboto"] { font-family: Roboto, sans-serif; }
 #pe-font option[value="Open Sans"] { font-family: "Open Sans", sans-serif; }
@@ -1841,3 +1841,323 @@
 #pe-font option[value="Merriweather"] { font-family: Merriweather, serif; }
 #pe-font option[value="Playfair Display"] { font-family: "Playfair Display", serif; }
 #pe-font option[value="Caveat"] { font-family: Caveat, cursive; }
+/* ---------------------------------------------------------
+   Logs em planilha (/logs)
+   --------------------------------------------------------- */
+
+.logv {
+  max-width: 1320px;
+  margin: 0 auto;
+  padding: 38px 22px 70px;
+}
+
+.logv-hero { padding: 10px 0 20px; }
+.logv-hero h1 { font-size: clamp(26px, 4vw, 40px); }
+.logv-hero .lead { margin-bottom: 12px; }
+
+/*painel principal (só aparece com dado carregado) */
+.logv-chrome {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.logv-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+
+.logv-search { flex: 0 1 340px; min-width: 200px; }
+
+.logv-sheet { max-width: 180px; }
+
+/* popovers (colunas e exportar) âncora no botão */
+.logv-pop-wrap { position: relative; }
+.logv-pop {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 50;
+  min-width: 220px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  box-shadow: var(--shadow);
+}
+.logv-pop-menu { min-width: 230px; }
+.logv-menu-item {
+  display: block;
+  width: 100%;
+  margin: 0 0 2px;
+  padding: 8px 10px;
+  text-align: left;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--text);
+  cursor: pointer;
+}
+.logv-menu-item:hover { background: rgba(108, 140, 255, 0.14); }
+.logv-menu-item b { display: block; font-size: 13.5px; font-weight: 600; }
+.logv-menu-item span { color: var(--muted); font-size: 11.5px; }
+
+/* tabela */
+.logv-table-wrap { position: relative; overflow: auto; max-height: 66vh; }
+
+.logv-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 13px;
+}
+
+.logv-table th {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  padding: 0;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-2);
+  text-align: left;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.logv-table th.is-sorted { background: rgba(108, 140, 255, 0.16); }
+
+.logv-th { display: flex; align-items: stretch; gap: 2px; }
+
+.logv-th-label {
+  flex: 1;
+  min-width: 0;
+  padding: 9px 4px 9px 12px;
+  border: none;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.logv-th-label:hover { text-decoration: underline; }
+
+.logv-th-btn {
+  flex: none;
+  width: 22px;
+  padding: 0 4px;
+  border: none;
+  background: none;
+  color: var(--muted);
+  font-size: 10px;
+  cursor: pointer;
+}
+.logv-th-btn:hover { color: var(--text); }
+.logv-th-btn.is-filtered { color: var(--brand); }
+
+.logv-sort { color: var(--brand-2); font-size: 10px; margin-left: 4px; }
+
+.logv-table td {
+  padding: 6px 12px;
+  border-bottom: 1px solid rgba(39, 50, 92, 0.55);
+  max-width: 340px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.logv-table tbody tr:nth-child(even) { background: rgba(255, 255, 255, 0.02); }
+.logv-table tbody tr:hover { background: rgba(108, 140, 255, 0.08); }
+.logv-table td.is-empty { color: var(--muted); opacity: 0.55; }
+.logv-table td.is-numeric { text-align: right; font-variant-numeric: tabular-nums; }
+/* nos cabeçalhos numéricos o rótulo encosta no funil pela direita */
+.logv-table th.is-numeric .logv-th-label { text-align: right; padding-left: 4px; }
+
+.logv-no-match {
+  padding: 26px 16px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 13.5px;
+}
+
+/* rodapé de paginação */
+.logv-pager {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+.logv-pagesize { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12.5px; }
+.logv-page-now { min-width: 52px; text-align: center; font-variant-numeric: tabular-nums; }
+.logv-pager .btn { padding: 5px 11px; }
+
+/* zona de arrastar */
+.logv-drop {
+  margin: 6px 0 14px;
+  padding: 46px 20px;
+  text-align: center;
+  border: 2px dashed var(--line);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.02);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.logv-drop:hover,
+.logv-drop.is-over {
+  border-color: var(--brand);
+  background: rgba(108, 140, 255, 0.08);
+}
+.logv-drop-inner strong {
+  display: block;
+  font-size: 17px;
+  font-weight: 650;
+  margin-bottom: 4px;
+}
+.logv-drop-inner span { color: var(--muted); font-size: 13px; }
+
+.logv-alt { display: flex; justify-content: center; gap: 10px; margin-bottom: 26px; }
+
+/* menu de coluna (ativo no clique do funil do cabeçalho) */
+.logv-menu {
+  position: fixed;
+  z-index: 60;
+  width: 260px;
+  max-height: min(430px, 92vh);
+  overflow-y: auto;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  box-shadow: var(--shadow);
+  font-size: 12.5px;
+}
+.logv-menu-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.logv-menu-head strong { font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.logv-menu-sec { border-top: 1px solid var(--line); padding: 8px 0; }
+.logv-menu-sec:first-of-type { border-top: 0; }
+.logv-menu-rot {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--muted);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+.logv-menu-row { display: flex; gap: 6px; }
+.logv-menu-row .select { flex: 0 0 46%; min-width: 0; }
+.logv-menu-row .text-input { flex: 1; min-width: 0; padding: 5px 8px; }
+.logv-menu-btns { display: flex; gap: 6px; flex-wrap: wrap; }
+.logv-mini {
+  margin: 0;
+  padding: 4px 9px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--muted);
+  font-size: 11.5px;
+  cursor: pointer;
+}
+.logv-mini:hover { color: var(--text); border-color: var(--brand); }
+.logv-menu-nota { margin: 6px 0 0; color: var(--muted); font-size: 10.5px; }
+
+.logv-val-list { max-height: 168px; overflow-y: auto; margin: 6px 0; border: 1px solid rgba(39, 50, 92, 0.7); border-radius: 6px; }
+.logv-val-list label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 3px 8px;
+  cursor: pointer;
+}
+.logv-val-list label:hover { background: rgba(108, 140, 255, 0.12); }
+.logv-val-list label[hidden] { display: none; }
+.logv-val-list label span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.logv-val-list label b { color: var(--muted); font-size: 10.5px; font-weight: 500; }
+.logv-val-list input { accent-color: var(--brand); flex: none; }
+
+.logv-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 3px;
+  padding: 2px 2px;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.logv-check:hover { color: var(--brand); }
+.logv-check input { accent-color: var(--brand); flex: none; }
+.logv-check span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.logv-pop-list { max-height: 220px; overflow-y: auto; }
+.logv-pop-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* modal de colar dados */
+.logv-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(5, 8, 20, 0.66);
+  backdrop-filter: blur(3px);
+}
+.logv-modal {
+  width: min(720px, 100%);
+  padding: 14px 16px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+.logv-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.logv-modal-text {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: #0b1124;
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 12.5px;
+  line-height: 1.55;
+  resize: vertical;
+  white-space: pre;
+  overflow: auto;
+}
+.logv-modal-text:focus { outline: 2px solid rgba(108, 140, 255, 0.5); outline-offset: 1px; }
+.logv-modal-actions { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+
+@media (max-width: 760px) {
+  .logv-search { flex-basis: 100%; order: 5; }
+  .logv-bar { gap: 8px; }
+}

@@ -13,3 +13,5 @@ Thumbs.db
 # PDFs gerados durante os testes
 *.pdf
 !public/*.pdf
+
+logs-exemplo/
