@@ -125,7 +125,9 @@ vazios sempre por último), menu de filtro por coluna com operadores de texto
 (busca + contagem por valor, aplicada ao fechar), colunas escondidas, paginação
 e exportação do que está filtrado — Excel `.xlsx`, CSV (vírgula ou ponto e
 vírgula, ambos com BOM para o Excel de pt-BR) e copiar para a área de
-transferência como TSV. Nada sai do navegador.
+transferência como TSV. As colunas se comportam como no Excel: arrastar a borda
+do cabeçalho muda a largura, arrastar o rótulo move a coluna de lugar. Nada
+sai do navegador.
 
 ## Salas compartilhadas
 

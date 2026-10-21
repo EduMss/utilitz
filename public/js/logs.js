@@ -54,6 +54,12 @@
     sort: { key: null, dir: 0 }, /* dir: 1 asc, -1 desc, 0 sem ordenação */
     pageSize: 100,
     page: 1,
+    /* Larguras manuais das colunas (px por key), válidas da sessão.
+       `largurasFixas` liga quando o usuário arrasta uma alça a primeira
+       vez: daí em diante a tabela é table-layout fixed e cada coluna
+       tem largura explícita. */
+    larguras: {},
+    largurasFixas: false,
   };
 
   /* Preenchido por `linhasFiltradas()`: a vista está recortada? */
@@ -72,6 +78,8 @@
     sheet: $('#logv-sheet'),
     thead: $('#logv-thead'),
     tbody: $('#logv-tbody'),
+    table: $('#logv-table'),
+    tableWrap: $('#logv-table-wrap'),
     noMatch: $('#logv-no-match'),
     noMatchText: $('#logv-nomatch-text'),
     columnsBtn: $('#logv-columns-btn'),
@@ -372,6 +380,11 @@
     state.search = '';
     state.sort = { key: null, dir: 0 };
     state.page = 1;
+    /* larguras feitas na mão morrem junto com o arquivo novo */
+    state.larguras = {};
+    state.largurasFixas = false;
+    el.table.style.tableLayout = '';
+    el.table.style.width = '';
     valoresCache = { key: null, lista: null };
 
     /* 5) Tela */
@@ -566,9 +579,12 @@
       return '<th data-key="' + escDuas(c.key) + '"' +
         ' class="' + (c.tipo === 'numero' ? 'is-numeric ' : '') + (ordenada(c) ? 'is-sorted' : '') + '">' +
         '<div class="logv-th"><button type="button" class="logv-th-label" data-sort="' + escDuas(c.key) +
-        '" title="Ordenar">' + escDuas(c.label) + seta + '</button>' + funil + '</div></th>';
+        '" title="Ordenar">' + escDuas(c.label) + seta + '</button>' + funil + '</div>' +
+        '<span class="logv-resize" data-resize="' + escDuas(c.key) + '" title="Arraste para mudar a largura"></span>' +
+        '</th>';
     }).join('');
     el.thead.innerHTML = '<tr>' + ths + '</tr>';
+    aplicarLarguras();
   }
 
   function renderizarCorpo(linhas) {
@@ -648,6 +664,162 @@
       (filtrada ? ' · filtradas: ' + fmt(resultado.length) : '');
     el.clear.hidden = !filtrada;
     el.exportBtn.disabled = state.colunas.length === 0;
+  }
+
+  /* ---------------------------------------------------------
+     Alças das colunas: redimensionar (arraste da borda) e
+     mover de lugar (arraste do rótulo)
+     --------------------------------------------------------- */
+  function thsVisiveis() {
+    return Array.from(el.thead.querySelectorAll('th[data-key]'));
+  }
+
+  /* Coloca em px as larguras salvas e põe a tabela em layout fixo,
+     só quando a coluna já foi redimensionada alguma vez. */
+  function aplicarLarguras() {
+    if (!state.largurasFixas) return;
+    const ths = thsVisiveis();
+    ths.forEach((th) => {
+      const largura = state.larguras[th.dataset.key];
+      th.style.width = (largura != null ? largura : 160) + 'px';
+    });
+    el.table.style.tableLayout = 'fixed';
+    ajustarTabela();
+  }
+
+  /* As colunas explicitas se a soma passa do painel; quando não passa,
+     o Chrome encolhe/espelha tudo até caber — a largura vem da soma. */
+  function ajustarTabela() {
+    if (!state.largurasFixas) return;
+    const soma = thsVisiveis().reduce((a, th) => a + th.getBoundingClientRect().width, 0);
+    const painel = el.tableWrap.clientWidth;
+    el.table.style.width = (soma >= painel ? soma : painel) + 'px';
+  }
+
+  /* A primeira alça arrastada congela TODAS as larguras atuais em px. */
+  function congelarLarguras() {
+    if (state.largurasFixas) return;
+    thsVisiveis().forEach((th) => {
+      const largura = th.getBoundingClientRect().width;
+      state.larguras[th.dataset.key] = largura;
+      th.style.width = largura + 'px';
+    });
+    el.table.style.tableLayout = 'fixed';
+    state.largurasFixas = true;
+    ajustarTabela();
+  }
+
+  let arraste = null; /* { modo: 'largura'|'ordem', ... } */
+  let guia = null;
+
+  function iniciarLargura(ev, th) {
+    congelarLarguras();
+    const rectEsquerda = th.getBoundingClientRect().left;
+    const key = th.dataset.key;
+    arraste = {
+      modo: 'largura',
+      th,
+      key,
+      mover: (mo) => {
+        const nova = Math.max(52, Math.min(mo.clientX - rectEsquerda, 2000));
+        th.style.width = nova + 'px';
+        state.larguras[key] = nova;
+        ajustarTabela();
+      },
+      soltar: () => {
+        th.classList.remove('is-resizing');
+        document.body.classList.remove('logv-resizing');
+        ajustarTabela();
+      },
+    };
+    th.classList.add('is-resizing');
+    document.body.classList.add('logv-resizing');
+    moverArrasteCom(ev);
+  }
+
+  function iniciarOrdem(ev, th) {
+    arraste = {
+      modo: 'ordem',
+      th,
+      key: th.dataset.key,
+      x0: ev.clientX,
+      y0: ev.clientY,
+      ativo: false,
+    };
+  }
+
+  function linhaGuia() {
+    if (!guia) {
+      guia = document.createElement('div');
+      guia.className = 'logv-guia';
+      guia.hidden = true;
+      document.body.appendChild(guia);
+    }
+    return guia;
+  }
+
+  function moverArrasteCom(ev) {
+    if (arraste.modo !== 'ordem') return;
+    if (!arraste.ativo) {
+      if (Math.abs(ev.clientX - arraste.x0) < 6 && Math.abs(ev.clientY - arraste.y0) < 4) return;
+      arraste.ativo = true;
+      arraste.th.classList.add('is-moving');
+      document.body.classList.add('logv-reordenando');
+      linhaGuia().hidden = false;
+    }
+    /* linha de inserção: fronteira cujo centro está mais perto do cursor */
+    const ths = thsVisiveis();
+    let indice = ths.length;
+    let x = null;
+    for (let i = 0; i < ths.length; i++) {
+      const rect = ths[i].getBoundingClientRect();
+      if (ev.clientX < rect.left + rect.width / 2) {
+        indice = i;
+        x = rect.left;
+        break;
+      }
+    }
+    if (x == null) x = ths[ths.length - 1].getBoundingClientRect().right;
+    const primeira = ths[0].getBoundingClientRect();
+    const g = linhaGuia();
+    g.style.left = x - 1 + 'px';
+    g.style.top = primeira.top + 'px';
+    g.style.height = el.tableWrap.clientHeight + 'px';
+    arraste.indiceDestino = indice;
+  }
+
+  function soltarArraste() {
+    if (!arraste) return;
+    if (arraste.modo === 'ordem' && arraste.ativo) {
+      const ok = arraste.indiceDestino != null;
+      if (ok) moverColuna(arraste.key, arraste.indiceDestino);
+      arraste.th.classList.remove('is-moving');
+      document.body.classList.remove('logv-reordenando');
+      if (guia) guia.hidden = true;
+      if (ok) {
+        renderizar();
+        toast('Colunas reordenadas');
+      }
+    }
+    if (arraste.modo === 'largura') arraste.soltar();
+    arraste = null;
+  }
+
+  /* Move a coluna `key` para o índice de inserção `destino` na lista de
+     visíveis (coloca antes do coluna naquele índice; fim = len). */
+  function moverColuna(key, destino) {
+    const visiveis = state.colunas.filter((c) => !c.hidden);
+    const de = visiveis.findIndex((c) => c.key === key);
+    if (de < 0) return false;
+    let para = destino;
+    if (para > de) para -= 1;
+    if (para === de) return false;
+    const movida = visiveis.splice(de, 1)[0];
+    visiveis.splice(para, 0, movida);
+    /* recompor a lista completa: as escondidas ficam nos buracos delas */
+    let vi = 0;
+    state.colunas = state.colunas.map((c) => (c.hidden ? c : visiveis[vi++]));
+    return true;
   }
 
   /* ---------------------------------------------------------
@@ -1042,6 +1214,30 @@
   });
 
   el.sampleBtn.addEventListener('click', carregarExemplo);
+
+  /* Alças do cabeçalho: borda direita redimensiona, rótulo move. */
+  el.thead.addEventListener('mousedown', (ev) => {
+    if (ev.button !== 0) return;
+    const alca = ev.target.closest('.logv-resize');
+    const label = ev.target.closest('.logv-th-label');
+    if (alca) {
+      const th = alca.closest('th[data-key]');
+      if (th) {
+        ev.preventDefault();
+        iniciarLargura(ev, th);
+      }
+    } else if (label) {
+      const th = label.closest('th[data-key]');
+      if (th) iniciarOrdem(ev, th);
+    }
+  });
+  document.addEventListener('mousemove', (ev) => {
+    if (arraste) {
+      if (arraste.modo === 'largura') arraste.mover(ev);
+      else moverArrasteCom(ev);
+    }
+  });
+  document.addEventListener('mouseup', soltarArraste);
 
   /* "Aplica ao fechar" também quando o fechamento vem de fora (clique no
      vazio ou Esc): o menu guarda o que foi editado, mas a tabela só

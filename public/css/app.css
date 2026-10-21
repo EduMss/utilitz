@@ -2016,6 +2016,48 @@
 /* nos cabeçalhos numéricos o rótulo encosta no funil pela direita */
 .logv-table th.is-numeric .logv-th-label { text-align: right; padding-left: 4px; }
 
+/* alça de largura da coluna: borda direita do cabeçalho */
+.logv-resize {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: -3px;
+  width: 7px;
+  z-index: 12;
+  cursor: col-resize;
+}
+.logv-resize::after {
+  content: '';
+  position: absolute;
+  top: 22%;
+  bottom: 22%;
+  right: 3px;
+  width: 2px;
+  border-radius: 1px;
+  background: transparent;
+  transition: background 0.12s;
+}
+.logv-resize:hover::after,
+.logv-table th.is-resizing .logv-resize::after { background: var(--brand); }
+.logv-table th.is-resizing,
+.logv-table th.is-moving { user-select: none; }
+.logv-table th.is-moving { opacity: 0.45; }
+body.logv-resizing,
+body.logv-reordenando { user-select: none; }
+body.logv-resizing * { cursor: col-resize !important; }
+body.logv-reordenando * { cursor: grabbing !important; }
+
+/* linha de inserção do arrasto de coluna */
+.logv-guia {
+  position: fixed;
+  z-index: 90;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--brand);
+  box-shadow: 0 0 6px rgba(108, 140, 255, 0.7);
+  pointer-events: none;
+}
+
 .logv-no-match {
   padding: 26px 16px;
   text-align: center;

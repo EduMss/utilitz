@@ -248,6 +248,71 @@ async function passa(nome, fn) {
       await valor("document.getElementById('logv-columns-pop').hidden = true");
     });
 
+    console.log('\n== largura e ordem das colunas ==');
+
+    await passa('alça redimensiona a coluna e sobrevive ao re-render', async () => {
+      const antes = await valor(
+        "(function(){ var th = document.querySelector('#logv-thead th[data-key=\"rota\"]'); return Math.round(th.getBoundingClientRect().width); })()"
+      );
+      await valor(
+        "(function(){" +
+        "var th = document.querySelector('#logv-thead th[data-key=\"rota\"]');" +
+        "var r = th.getBoundingClientRect();" +
+        "th.querySelector('.logv-resize').dispatchEvent(new MouseEvent('mousedown', {bubbles:true, cancelable:true, button:0, clientX: r.right, clientY: r.top + 10}));" +
+        "document.dispatchEvent(new MouseEvent('mousemove', {bubbles:true, clientX: r.right + 130, clientY: r.top + 10}));" +
+        "document.dispatchEvent(new MouseEvent('mouseup', {bubbles:true, clientX: r.right + 130, clientY: r.top + 10}));" +
+        "return true;})()"
+      );
+      const larg = await valor(
+        "(function(){ var th = document.querySelector('#logv-thead th[data-key=\"rota\"]'); return Math.round(th.getBoundingClientRect().width); })()"
+      );
+      assert2(larg >= antes + 120 && larg <= antes + 145, 'largura não aumentou ~130px: ' + antes + ' → ' + larg);
+      /* re-render (filtro) — a largura é mantida */
+      await valor(
+        "var b = document.getElementById('logv-search'); b.value = 'info'; b.dispatchEvent(new Event('input', {bubbles:true}));"
+      );
+      await espera("document.getElementById('logv-status').textContent.indexOf('filtradas') >= 0", 4000, 'filtro para re-render');
+      const veredito = await valor(
+        "(function(){ var th = document.querySelector('#logv-thead th[data-key=\"rota\"]'); return Math.round(th.getBoundingClientRect().width); })()"
+      );
+      assert2(Math.abs(veredito - larg) <= 2, 'largura não sobreviveu ao re-render: ' + veredito + ' vs ' + larg);
+      await valor(
+        "var b = document.getElementById('logv-search'); b.value = ''; b.dispatchEvent(new Event('input', {bubbles:true}));"
+      );
+    });
+
+    await passa('arrastar o rótulo move a coluna de lugar', async () => {
+      const antes = await valor(
+        "Array.from(document.querySelectorAll('#logv-thead th')).map(function(t){return t.dataset.key;}).join(',')"
+      );
+      await valor(
+        "(function(){" +
+        "var th = document.querySelector('#logv-thead th[data-key=\"status\"]');" +
+        "var label = th.querySelector('.logv-th-label');" +
+        "var r = label.getBoundingClientRect();" +
+        "var destino = document.querySelector('#logv-thead th[data-key=\"ip\"]');" +
+        "var rd = destino.getBoundingClientRect();" +
+        "var x = rd.left + rd.width * 0.4;" +
+        "label.dispatchEvent(new MouseEvent('mousedown', {bubbles:true, cancelable:true, button:0, clientX: r.left + 5, clientY: r.top + 5}));" +
+        "document.dispatchEvent(new MouseEvent('mousemove', {bubbles:true, clientX: r.left + 30, clientY: r.top + 5}));" +
+        "document.dispatchEvent(new MouseEvent('mousemove', {bubbles:true, clientX: x, clientY: r.top + 5}));" +
+        "document.dispatchEvent(new MouseEvent('mouseup', {bubbles:true, clientX: x, clientY: r.top + 5}));" +
+        "return true;})()"
+      );
+      const depois = await valor(
+        "Array.from(document.querySelectorAll('#logv-thead th')).map(function(t){return t.dataset.key;}).join(',')"
+      );
+      assert2(antes !== depois, 'ordem não mudou: ' + depois);
+      const ia = antes.split(',').indexOf('status');
+      const id = depois.split(',').indexOf('status');
+      assert2(ia >= 0 && id > ia, 'esperava status movida para a frente: ' + antes + ' → ' + depois);
+      /* funil ainda abre (alça não engoliu o clique) */
+      await valor("document.querySelector('#logv-thead [data-menu=\"ip\"]') && document.querySelector('#logv-thead [data-menu=\"ip\"]').click()");
+      await espera("!!document.querySelector('#logv-menu')", 4000, 'menu da coluna ip aberto');
+      await valor("document.querySelector('#logv-menu [data-fechar]').click()");
+      await espera("!document.querySelector('#logv-menu')", 4000, 'menu fechado');
+    });
+
     console.log('\n== XLSX ==');
 
     await passa('upload de workbook de 2 abas lê a maior', async () => {
