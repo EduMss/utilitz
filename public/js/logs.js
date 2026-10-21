@@ -1043,6 +1043,15 @@
 
   el.sampleBtn.addEventListener('click', carregarExemplo);
 
+  /* "Aplica ao fechar" também quando o fechamento vem de fora (clique no
+     vazio ou Esc): o menu guarda o que foi editado, mas a tabela só
+     reage ao renderizar(). */
+  function dispensarMenus() {
+    const menu = $('#logv-menu');
+    fecharMenus();
+    if (menu) renderizar();
+  }
+
   /* Fora de foco / Esc dispensam menus e modal */
   document.addEventListener('click', (ev) => {
     if (
@@ -1053,12 +1062,12 @@
       !ev.target.closest('#logv-export-btn') &&
       !ev.target.closest('#logv-export-pop')
     ) {
-      fecharMenus();
+      dispensarMenus();
     }
   });
   document.addEventListener('keydown', (ev) => {
     if (ev.key === 'Escape') {
-      fecharMenus();
+      dispensarMenus();
       if (!el.modal.hidden) el.modal.hidden = true;
     }
   });

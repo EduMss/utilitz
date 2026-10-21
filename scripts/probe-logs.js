@@ -218,6 +218,23 @@ async function passa(nome, fn) {
       await espera("!document.querySelector('#logv-menu')", 4000, 'menus fechados');
     });
 
+    await passa('filtra ao clicar FORA do menu (sem Enter nem Aplicar)', async () => {
+      await valor("document.querySelector('#logv-thead [data-menu=\"tempo_ms\"]').click()");
+      await espera("!!document.querySelector('#logv-menu')", 4000, 'menu aberto');
+      await valor(
+        "var s = document.querySelector('#logv-menu .logv-op'); s.value = 'maior'; s.dispatchEvent(new Event('change', {bubbles:true}));" +
+        "var v = document.querySelector('#logv-menu .logv-valor'); v.value = '3000'; v.dispatchEvent(new Event('input', {bubbles:true}));"
+      );
+      /* clique fora: nenhum dos refinamentos, direto no documento */
+      await valor("document.body.click()");
+      await espera(
+        "document.getElementById('logv-status').textContent.indexOf('filtradas: 8') >= 0",
+        6000, 'status filtradas: 8 (tempo_ms maior que 3000, sem Enter)'
+      );
+      await valor("document.getElementById('logv-clear').click()");
+      await espera("document.getElementById('logv-status').textContent.indexOf('180 linhas') >= 0", 4000, 'filtro limpo');
+    });
+
     await passa('colunas: esconder nivel sumiu do cabeçalho', async () => {
       await valor("document.getElementById('logv-columns-btn').click()");
       await espera("!document.querySelector('#logv-columns-pop').hidden", 4000, 'popover aberto');
