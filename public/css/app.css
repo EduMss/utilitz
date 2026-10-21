@@ -1968,6 +1968,8 @@
   background: linear-gradient(rgba(108, 140, 255, 0.16), rgba(108, 140, 255, 0.16)),
     var(--surface-2);
 }
+/* no cabeçalho a régua é ainda mais discreta */
+.logv-table th { border-right: 1px solid rgba(39, 50, 92, 0.2); }
 
 .logv-th { display: flex; align-items: stretch; gap: 2px; }
 
@@ -2004,6 +2006,8 @@
 .logv-table td {
   padding: 6px 12px;
   border-bottom: 1px solid rgba(39, 50, 92, 0.55);
+  /* régua quase transparente marcando onde a célula termina */
+  border-right: 1px solid rgba(39, 50, 92, 0.14);
   max-width: 340px;
   overflow: hidden;
   text-overflow: ellipsis;
