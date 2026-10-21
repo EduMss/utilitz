@@ -1911,6 +1911,41 @@
 /* tabela */
 .logv-table-wrap { position: relative; overflow: auto; max-height: 66vh; }
 
+/* barras de rolagem finas e no tom do tema (quadro, menu de coluna,
+   caixa de valores e lista de colunas) */
+.logv-table-wrap,
+.logv-menu,
+.logv-val-list,
+.logv-pop-list {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(139, 152, 201, 0.38) transparent;
+}
+.logv-table-wrap::-webkit-scrollbar,
+.logv-menu::-webkit-scrollbar,
+.logv-val-list::-webkit-scrollbar,
+.logv-pop-list::-webkit-scrollbar { width: 11px; height: 11px; }
+.logv-table-wrap::-webkit-scrollbar-track,
+.logv-menu::-webkit-scrollbar-track,
+.logv-val-list::-webkit-scrollbar-track,
+.logv-pop-list::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 8px;
+}
+.logv-table-wrap::-webkit-scrollbar-thumb,
+.logv-menu::-webkit-scrollbar-thumb,
+.logv-val-list::-webkit-scrollbar-thumb,
+.logv-pop-list::-webkit-scrollbar-thumb {
+  background: rgba(139, 152, 201, 0.38);
+  border: 3px solid transparent;
+  border-radius: 8px;
+  background-clip: padding-box;
+}
+.logv-table-wrap::-webkit-scrollbar-thumb:hover,
+.logv-menu::-webkit-scrollbar-thumb:hover,
+.logv-val-list::-webkit-scrollbar-thumb:hover,
+.logv-pop-list::-webkit-scrollbar-thumb:hover { background-color: rgba(139, 152, 201, 0.62); }
+.logv-table-wrap::-webkit-scrollbar-corner { background: transparent; }
+
 .logv-table {
   width: 100%;
   border-collapse: separate;
@@ -1929,7 +1964,10 @@
   font-weight: 600;
   white-space: nowrap;
 }
-.logv-table th.is-sorted { background: rgba(108, 140, 255, 0.16); }
+.logv-table th.is-sorted {
+  background: linear-gradient(rgba(108, 140, 255, 0.16), rgba(108, 140, 255, 0.16)),
+    var(--surface-2);
+}
 
 .logv-th { display: flex; align-items: stretch; gap: 2px; }
 
